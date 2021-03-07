@@ -190,6 +190,8 @@ function structureReducer(state, action, language, wholeState) {
       checkPredicateValue(newState, action.predicateName);
       return newState;
     case SET_PREDICATE_VALUE_TABLE:
+      console.log("TABLE:");
+      console.log(action);
       if (action.checked) {
         if(newState.predicates[action.predicateName].parsed.some(tuple => JSON.stringify(tuple) === JSON.stringify(action.value))){
           return newState;
@@ -212,7 +214,7 @@ function structureReducer(state, action, language, wholeState) {
       parseStructure(newState.functions[action.functionName], action.value, wholeState, FUNCTION);
       checkFunctionValue(newState, action.functionName);
       return newState;
-    case SET_FUNCTION_VALUE_TABLE:;
+    case SET_FUNCTION_VALUE_TABLE:
       let params = action.value.slice(0, action.value.length - 1);
       let value = action.value[action.value.length - 1];
       let index = 0;
