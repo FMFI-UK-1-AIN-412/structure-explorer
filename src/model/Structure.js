@@ -22,33 +22,33 @@ class Structure {
     parsedDomain.forEach(i => {
       this.domain.add(i);
     });
-    this.language.constants.forEach(c => {
-      this.iConstant.set(c, constants[c].value);
+
+    constants.forEach(constant => {
+      this.iConstant.set(constant.name, constant.value);
     });
 
-    this.language.functions.forEach((arity, name) => {
-      let functionName = name + "/" + arity;
-      this.iFunction.set(functionName, {});
-      if(functions[functionName] === undefined){
+    functions.forEach(func => {
+      this.iPredicate.set(func.name, {});
+      if(func.values === undefined){
         return;
       }
-      functions[functionName].parsed.forEach(tuple => {
+      func.values.forEach(tuple => {
         let params = tuple.slice(0, tuple.length - 1);
         let value = tuple[tuple.length - 1];
-        this.iFunction.get(functionName)[JSON.stringify(params)] = value;
+        this.iFunction.get(func.name)[JSON.stringify(params)] = value;
       });
     });
 
-    this.language.predicates.forEach((arity, name) => {
-      let predicateName = name + "/" + arity;
-      this.iPredicate.set(predicateName, []);
-      if(predicates[predicateName] === undefined){
+    predicates.forEach(predicate => {
+      this.iPredicate.set(predicate.name, []);
+      if(predicate.values === undefined){
         return;
       }
-      predicates[predicateName].parsed.forEach(tuple => {
-        this.iPredicate.get(predicateName).push(tuple);
+      predicate.values.forEach(tuple => {
+        this.iPredicate.get(predicate.name).push(tuple);
       });
     });
+    console.log(this);
   }
 }
 

@@ -7,6 +7,7 @@ import diagramReducer,{ defaultState as diagramDefaultState } from "./diagram";
 import {defaultState as expressionsDefaultState} from "./expressions";
 import {defaultState as structureDefaultState} from "./structure";
 import {defaultState as languageDefaultState} from "./language";
+import {getStructureObject} from "../selectors/structureObject";
 
 const defaultState = {
     common: {
@@ -42,8 +43,8 @@ function root(state = defaultState, action:any) {
     let common = teacherModeReducer(state.common, action);
     let language = languageReducer(state.language, action);
     let structure = structureReducer(state.structure, action, language, state);
-    let expressions = expressionsReducer(state.expressions, action, state.structure.variables.object, state);
     let diagramState = diagramReducer(state.diagramState, action, state);
+    let expressions = expressionsReducer(state.expressions, action, state.structure.variables.object, state, getStructureObject(state));
 
     return {
         common: common,

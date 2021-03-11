@@ -58,6 +58,7 @@ import {getStructureObject} from "../selectors/structureObject";
 import {parseExpression} from "./functions/parsers";
 
 let s = {};
+let obj;
 
 export function defaultState(){
   return {
@@ -66,7 +67,8 @@ export function defaultState(){
   }
 }
 
-function expressionsReducer(state = {}, action, variables, wholeState) {
+function expressionsReducer(state = {}, action, variables, wholeState, strObj) {
+  obj = strObj;
   s = state;   //copyState(state);
   switch (action.type) {
     case SET_CONSTANTS:
@@ -302,6 +304,9 @@ function evalExpression(state, expression, variables) {
   }
   expression.errorMessage = '';
   try {
+    console.log(obj);
+    console.log(state);
+    console.log(getStructureObject(state));
     expression.expressionValue = expression.parsed.eval(getStructureObject(state), variables);
   } catch (e) {
     expression.errorMessage = e;

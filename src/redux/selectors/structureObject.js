@@ -2,9 +2,9 @@ import { createSelector } from 'reselect'
 import Structure from "../../model/Structure";
 import {getLanguageObject} from "./languageObject";
 
-const getConstants = state => state.structure.constants
-const getFunctions = state => state.structure.functions
-const getPredicates = state => state.structure.predicates
+const getConstants = state => getDataFromStructure(state.structure.constants)
+const getFunctions = state => getDataFromStructure(state.structure.functions)
+const getPredicates = state => getDataFromStructure(state.structure.predicates)
 const getParsedDomain = state => state.structure.domain.parsed
 
 export const getStructureObject = createSelector(
@@ -14,3 +14,15 @@ export const getStructureObject = createSelector(
     }
 )
 
+function getDataFromStructure(state){
+    let keys = Object.keys(state);
+    let array = [];
+    if(keys.length === 0){
+        return array;
+    }
+    for(let key of keys){
+        array.push({name: key, values: state[key].parsed, value: state[key].value})
+    }
+    console.log(array);
+    return array;
+}
