@@ -237,6 +237,9 @@ const structureReducer = produce((structure, action, state) => {
       structure.domain.parsed = structure.domain.parsed.map(value => value === action.oldName ? action.newName : value);
       structure.domain.value = structure.domain.parsed.join(", ");
       setDomain(structure);
+      if(structure.domain.parsed.length !== 0){
+        structure.domain.errorMessage = '';
+      }
 
       Object.keys(structure.constants).forEach(c => {
         if (structure.constants[c].value === action.oldName) {
@@ -251,12 +254,18 @@ const structureReducer = produce((structure, action, state) => {
       structure.domain.parsed.push(action.nodeName);
       structure.domain.value = structure.domain.parsed.join(", ");
       setDomain(structure);
+      if(structure.domain.parsed.length !== 0){
+        structure.domain.errorMessage = '';
+      }
       return;
 
     case REMOVE_DOMAIN_NODE:
       structure.domain.parsed = structure.domain.parsed.filter(value => value !== action.nodeName);
       structure.domain.value = structure.domain.parsed.join(", ");
       setDomain(structure);
+      if(structure.domain.parsed.length !== 0){
+        structure.domain.errorMessage = '';
+      }
 
       //toto mozem pretoze tu nie je input okno takze toto sa "neda" pokazit takym sposobom
       state.language.constants.parsed.forEach(c => {
@@ -389,8 +398,12 @@ function addPredicateLanguageElement(state, language, elementName, elementArity,
   insertNewInputs(state, language);
   if(nodeNames !== null) {
     if (direction !== "") {
-      let arrayNodeNames = buildTupleArray(nodeNames, direction)
-      arrayNodeNames.forEach(tuple => state.predicates[predicateName].parsed.push(tuple))
+      let arrayNodeNames = buildTupleArray(nodeNames, direction);
+      arrayNodeNames.forEach(tuple => {
+        if(!state.predicates[predicateName].parsed.some(entry => arraysEqual(entry, tuple))) {
+          state.predicates[predicateName].parsed.push(tuple);
+        }
+      });
     } else {
       state.predicates[predicateName].parsed.push(nodeNames);
     }
@@ -404,8 +417,12 @@ function addFunctionLanguageElement(state, language, elementName, elementArity, 
   insertNewInputs(state, language);
   if(nodeNames !== null) {
     if (direction !== "") {
-      let arrayNodeNames = buildTupleArray(nodeNames, direction)
-      arrayNodeNames.forEach(tuple => state.functions[functionName].parsed.push(tuple))
+      let arrayNodeNames = buildTupleArray(nodeNames, direction);
+      arrayNodeNames.forEach(tuple => {
+        if(!state.functions[functionName].parsed.some(entry => arraysEqual(entry, tuple))) {
+          state.functions[functionName].parsed.push(tuple);
+        }
+      });
     } else {
       state.functions[functionName].parsed.push(nodeNames);
     }
@@ -564,6 +581,18 @@ function  parsedToValue(parsedValues) {
     return '';
   }
   return parsedValues.map(value => tupleToString(value)).join(", ");
+}
+
+function arraysEqual(array1, array2){
+  if(array1.length !== array2.length) {
+    return false;
+  }
+  for(let index = 0; index < array1.length; index++){
+    if(array1[index] !== array2[index]){
+      return false;
+    }
+  }
+  return true;
 }
 
 export default structureReducer;

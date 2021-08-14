@@ -153,15 +153,19 @@ function returnParsedFuncValues(state){
 }
 
 function addPredicateLanguageElement(state, elementName, elementArity){
-  state.predicates.parsed.push({name: elementName, arity: elementArity});
-  state.predicates.value = state.predicates.parsed.map(value => value.name + "/" + value.arity).join(",");
-  validatePredicates(state);
+  if(!state.predicates.parsed.some(pred => elementName === pred.name && elementArity === pred.arity)){
+    state.predicates.parsed.push({name: elementName, arity: elementArity});
+    state.predicates.value = state.predicates.parsed.map(value => value.name + "/" + value.arity).join(",");
+    validatePredicates(state);
+  }
 }
 
 function addFunctionLanguageElement(state, elementName, elementArity){
-  state.functions.parsed.push({name: elementName, arity: elementArity});
-  state.functions.value = state.functions.parsed.map(value => value.name + "/" + value.arity).join(",");
-  validateFunctions(state);
+  if(!state.functions.parsed.some(func => elementName === func.name && elementArity === func.arity)) {
+    state.functions.parsed.push({name: elementName, arity: elementArity});
+    state.functions.value = state.functions.parsed.map(value => value.name + "/" + value.arity).join(",");
+    validateFunctions(state);
+  }
 }
 
 function validateAndParseConstants(state) {
