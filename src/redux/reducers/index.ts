@@ -30,9 +30,11 @@ function checkImportedState(state:any) {
 function root(state = defaultState, action:any) {
     if (action.type === IMPORT_APP) {
         try {
-            state = JSON.parse(action.content);
-            checkImportedState(state);
+            const importedState = JSON.parse(action.content);
+            checkImportedState(importedState);
+            state = importedState;
             state.diagramState = action.diagramState?action.diagramState:diagramDefaultState();
+            console.log('Imported state', state);
         } catch (e) {
             console.error(e);
         }
