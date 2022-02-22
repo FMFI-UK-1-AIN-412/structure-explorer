@@ -11,11 +11,11 @@ export function validateLanguageConstants(state){
         return;
     }
     state.constants.parsed.forEach(c => {
-        if (state.functions.parsed.some(value => value.name === c)) {
+        if (state.functions.parsed && state.functions.parsed.some(value => value.name === c)) {
             state.constants.errorMessage = `${FUNCTION_IN_LANGUAGE} ${c}`;
             return;
         }
-        if (state.predicates.parsed.some(value => value.name === c)) {
+        if (state.predicates.parsed && state.predicates.parsed.some(value => value.name === c)) {
             state.constants.errorMessage = `${PREDICATE_IN_LANGUAGE} ${c}`;
             return;
         }
@@ -31,11 +31,11 @@ export function validateLanguagePredicates(state){
         return;
     }
     state.predicates.parsed.forEach(p => {
-        if (state.constants.parsed.some(value => value === p.name)) {
-            state.predicates.errorMessage = `${CONSTANT_IN_LANGUAGE}  ${p.name}`;
+        if (state.constants.parsed && state.constants.parsed.some(value => value === p.name)) {
+            state.predicates.errorMessage = `${CONSTANT_IN_LANGUAGE} ${p.name}`;
             return;
         }
-        if (state.functions.parsed.some(value => value.name === p.name)) {
+        if (state.functions.parsed && state.functions.parsed.some(value => value.name === p.name)) {
             state.predicates.errorMessage = `${FUNCTION_IN_LANGUAGE} ${p.name}`;
             return;
         }
@@ -51,11 +51,11 @@ export function validateLanguageFunctions(state){
         return;
     }
     state.functions.parsed.forEach(f => {
-        if (state.constants.parsed.some(value => value === f.name)) {
+        if (state.constants.parsed && state.constants.parsed.some(value => value === f.name)) {
             state.functions.errorMessage = `${CONSTANT_IN_LANGUAGE} ${f.name}`;
             return;
         }
-        if (state.predicates.parsed.some(value => value.name === f.name)) {
+        if (state.predicates.parsed && state.predicates.parsed.some(value => value.name === f.name)) {
             state.functions.errorMessage = `${PREDICATE_IN_LANGUAGE} ${f.name}`;
             return;
         }
