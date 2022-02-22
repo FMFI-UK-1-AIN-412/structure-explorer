@@ -73,8 +73,11 @@ const expressionsReducer = produce((expressions, action, state) => {
     case SET_CONSTANTS:
     case SET_PREDICATES:
     case SET_FUNCTIONS:
+      syncExpressionsValue(expressions, state, variablesObject,true);
+      return;
     case IMPORT_APP:
       syncExpressionsValue(expressions, state, variablesObject,true);
+      expressions.formulas.forEach( (formula) => endGame(formula) );
       return;
     case SET_CONSTANT_VALUE:
     case SET_PREDICATE_VALUE_TEXT:
@@ -203,10 +206,7 @@ function game(expression, action, state, variablesObject){
           return;
 
     case END_GAME:
-          expression.gameHistory = new Array();
-          expression.showVariables = false;
-          expression.gameEnabled = false;
-          expression.variableIndex = 1;
+          endGame(expression);
           return;
 
     case GET_VARIABLES:
@@ -220,6 +220,13 @@ function game(expression, action, state, variablesObject){
     default:
           return;
     }
+}
+
+function endGame(expression) {
+  expression.gameHistory = new Array();
+  expression.showVariables = false;
+  expression.gameEnabled = false;
+  expression.variableIndex = 1;
 }
 
 function addExpression(expressions, expressionType) {
