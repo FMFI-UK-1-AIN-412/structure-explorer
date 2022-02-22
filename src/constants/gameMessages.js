@@ -10,7 +10,7 @@ export const WIN_1 = (formula, commitment, result) =>
 export const WIN_2 = (formula, commitment) =>
     `Tvoj úvodný predpoklad, že formula ${formula} je ${commitment}, bol správny.`
 
-export const LOSS = (formula, commitment, result) => `Vyhral/a si! ${formula} je ${commitment}, pretože ${result}`;
+export const LOSS = (formula, commitment, result) => `Prehral/a si! ${formula} je ${commitment}, pretože ${result}`;
 export const COULD_WON = (formula, commitment) =>
     `Mohol/mohla si však vyhrať. Tvoj úvodný predpoklad, že formula ${formula} je ${commitment}, je správny. Nájdi chybnú odpoveď a zmeň ju!`;
 export const COULD_NOT_WON = (formula, commitment) =>
