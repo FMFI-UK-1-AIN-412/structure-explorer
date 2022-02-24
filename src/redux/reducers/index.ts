@@ -34,7 +34,7 @@ function root(state = defaultState, action:any) {
             checkImportedState(importedState);
             state = importedState;
             state.diagramState = action.diagramState?action.diagramState:diagramDefaultState();
-            console.log('Imported state', state);
+            // console.log('Imported state', state);
         } catch (e) {
             console.error(e);
         }
