@@ -28,7 +28,7 @@
     "paths-js": "^0.4.10",
     "react-bootstrap": "^1.0.1",
     "react-fontawesome": "^1.7.1",
-    "react-scripts": "^3.4.0",
+    "react-scripts": "^5.0.1",
     "react-split-pane": "^2.0.3",
     "redux": "latest",
     "reselect": "^4.0.0",
