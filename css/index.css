@@ -23,10 +23,13 @@ body {
 .vh-pane-left,
 .vh-pane-right {
     height: calc(100vh - 64px);
+}
+
+.vh-pane-left {
     padding-right: 15px;
 }
 
-.vh-pane-right{
+.vh-pane-right {
     padding-left: 15px;
 }
 
@@ -39,6 +42,7 @@ body {
         /* cancel-out container-fluid's padding so that the resizer spans
            to viewport edges */
         margin-left: -15px;
+        margin-right: -15px;
     }
 
     [data-type="Resizer"] {
@@ -49,12 +53,16 @@ body {
     .vh-pane-left,
     .vh-pane-right {
         height: 100%;
+    }
+
+    .vh-pane-left {
         padding-left: 15px;
         padding-bottom: 15px;
     }
 
     .vh-pane-right {
         padding-top: 15px;
+        padding-right: 15px;
         min-height: 100%;
     }
 }
