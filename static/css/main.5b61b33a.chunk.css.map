@@ -1,0 +1,1 @@
+{"version":3,"sources":["DiagramSystem.module.css"],"names":[],"mappings":"AAAA,mCACE,UAAW,CACX,WAAY,CACZ,QAAW,CACX,SAAY,CACZ,qBACF","file":"main.5b61b33a.chunk.css","sourcesContent":[".reactDiagram {\n  width: 100%;\n  height: 75vh;\n  margin: 0 0;\n  padding: 0 0;\n  background-color: white;\n}\n"]}

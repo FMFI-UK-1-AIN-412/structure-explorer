@@ -1,4 +1,4 @@
-body{
+body {
     user-select:none; /*fix the bug, when text is dragged over canvas and cause loading of different element (text - element)*/
 }
 
@@ -12,52 +12,92 @@ body{
     border:0;
 }
 
-.no-padding-right {
-    padding-right: 0 !important;
-}
-
 .teacher-mode:hover{
     background-color: #28a745;
 }
 
-.form-control.is-invalid{
-    background-image: none;
+.split-pane {
+    height: calc(100vh - 64px) !important;
 }
 
-.hidden-on-medium-and-lower{
-    display: inline;
-}
-
-.vh-pane-left{
+.vh-pane-left,
+.vh-pane-right {
     height: calc(100vh - 64px);
     padding-right: 15px;
 }
 
 .vh-pane-right{
-    height: calc(100vh - 64px);
-    padding-right: 15px;
     padding-left: 15px;
 }
 
-@media all and (max-width: 991px) {
-    .vh-pane-left{
-        height: calc((100vh - 75px)/2);
-        margin-bottom: 5px;
+[data-type="Resizer"] {
+    width: 12px !important;
+}
+
+@media all and (max-width: 991.9px) {
+    .split-pane {
+        /* cancel-out container-fluid's padding so that the resizer spans
+           to viewport edges */
+        margin-left: -15px;
     }
 
-    .vh-pane-right{
-        height: calc((100vh - 75px)/2);
-        margin-top: 5px;
-        padding-left: 0;
+    [data-type="Resizer"] {
+        width: 100% !important;
+        height: 12px !important;
+    }
+    
+    .vh-pane-left,
+    .vh-pane-right {
+        height: 100%;
+        padding-left: 15px;
+        padding-bottom: 15px;
     }
 
-    .hidden-on-medium-and-lower{
-        display: none;
-        width: max-content;
+    .vh-pane-right {
+        padding-top: 15px;
+        min-height: 100%;
     }
+}
 
-    .container-fluid{
-        padding-right: 0;
-        overflow: hidden;
+@media all and (max-width: 991.9px) and (max-height: 240px) {
+    .split-pane {
+        height: auto !important;
     }
+}
+
+.view-mode .split-pane,
+.view-mode .vh-pane-left,
+.view-mode .vh-pane-right {
+    height: auto !important;
+}
+
+.view-mode .btn {
+    display: none;
+}
+
+.view-mode .form-control,
+.view-mode .input-group-prepend,
+.view-mode .input-group-append,
+.view-mode .input-group-text {
+    border: none;
+    background: initial;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    padding-left: 0 !important;
+}
+
+.view-mode .input-group.mb-1 {
+    margin-bottom: 0 !important;
+}
+
+.view-mode .form-control {
+    height: auto !important;
+}
+
+.view-mode .form-group {
+    margin-bottom: 0.5rem;
+}
+
+.view-mode .form-label {
+    margin-bottom: 0.25rem;
 }
