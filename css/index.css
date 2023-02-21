@@ -40,10 +40,6 @@ body {
         height: 100%;
     }
 
-    .vh-pane-left {
-        padding-bottom: 15px;
-    }
-
     .vh-pane-right {
         padding-top: 15px;
         min-height: 100%;
