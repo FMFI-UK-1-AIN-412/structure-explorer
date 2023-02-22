@@ -68,6 +68,7 @@ body {
 }
 
 .view-mode .form-control,
+.view-mode .custom-select,
 .view-mode .input-group-prepend,
 .view-mode .input-group-append,
 .view-mode .input-group-text {
