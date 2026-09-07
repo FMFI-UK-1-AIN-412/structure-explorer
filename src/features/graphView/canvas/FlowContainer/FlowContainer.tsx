@@ -58,7 +58,7 @@ const FlowContainer = forwardRef<HTMLDivElement, FlowContainerProps>(
     return (
       <div
         ref={ref}
-        className={`react-flow__container ${elementsHidden ? "elements-hidden" : ""}`}
+        className={`graph-flow-container ${elementsHidden ? "elements-hidden" : ""}`}
         onPointerDownCapture={hideZoomHint}
         onWheelCapture={(e) => {
           if (!zoomEnabled) {

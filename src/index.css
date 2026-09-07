@@ -54,7 +54,8 @@
 }
 
 /* fixes safari selecting elements on page when draggin a connection line */
-body:has(.structure-explorer .react-flow__connectionline) {
+body:has(.structure-explorer .react-flow__connectionline),
+body:has(.structure-explorer .react-flow__selection) {
   -webkit-user-select: none;
   user-select: none;
 }

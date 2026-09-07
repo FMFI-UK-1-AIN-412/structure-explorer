@@ -1,4 +1,4 @@
-.react-flow__container {
+.graph-flow-container {
   width: 100%;
   flex-grow: 1;
   position: relative;
@@ -49,6 +49,8 @@
   opacity: 0;
 
   transition: opacity 0.25s ease;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .flow-container-zoom-hint-container.visible::after {
@@ -75,7 +77,7 @@
   font-weight: 500;
 }
 
-.react-flow__container.elements-hidden .react-flow__node,
-.react-flow__container.elements-hidden .react-flow__edge {
+.graph-flow-container.elements-hidden .react-flow__node,
+.graph-flow-container.elements-hidden .react-flow__edge {
   visibility: hidden !important;
 }
