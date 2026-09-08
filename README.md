@@ -72,3 +72,10 @@ v rámci svojej bakalárskej práce s názvom <cite>Prieskumník grafových
 štruktúr pre logiku prvého rádu</cite>. V rokoch 2020–2021 Richard Tóth
 pridal do prieskumníka Henkinovu-Hintikkovu hru v rámci svojej bakalárskej
 práce <cite>Henkinova-Hintikkova hra v prieskumníku štruktúr</cite>.
+
+Neskôr aplikáciu nanovo implementoval Jozef Filip vo svojej bakalárskej práci 
+<cite>Reimplementácia prieskumníka štruktúr pre logiku prvého rádu</cite> 
+v rokoch 2024–2025, avšak bez pôvodného grafového pohľadu. Reimplementovanú verziu ďalej 
+rozšíril Jakub Marček o grafové, ale aj iné alternatívne editory interpretácií predikátov a funkcií 
+vo svojej bakalárskej práci <cite>Grafové editory pre prieskumník štruktúr 
+logiky prvého rádu</cite> v rokoch 2025–2026.
