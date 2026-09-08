@@ -24,12 +24,12 @@ Po tomto kroku bude aplikácia bežať na porte `localhost:5173`.
 
 ## Build
 
-Projekt možno buildovať viacerými spôsobmi:
+Existuje viacero spôsobov buildu:
 
 - `npm run build` vytvorí _produkčnú_ verziu knižnice v adresári `dist`.
 - `npm run build:demo` vytvorí v adresári `dist-demo` _ukážkovú_ verziu aplikácie.
 - `npm run build:dev-lib` pri spustení a následne pri každej zmene zdrojových súborov vytvorí _vývojovú_
-  verziu knižnice. Výstup (knižnica) sa nachádza v susednom adresári `../structure-explorer-dev-lib/dist`.
+  verziu knižnice. Výstupná knižnica sa nachádza v susednom adresári `../structure-explorer-dev-lib/dist`.
 
 Príkazy `npm pack` a `npm publish` cez script `prepack` najprv spustia `npm run build`.
 Do npm balíka sa zahrnie knižnica z `dist`.
@@ -42,7 +42,7 @@ npm link ../structure-explorer-dev-lib
 ```
 
 > Ukážkovú verziu je možné po builde spustiť lokálne príkazom `npm run preview`.
-> Príkaz `npm run deploy` najprv buildne ukážkovú aplikáciu a následne ju zverejní na GitHub Pages.
+> Príkaz `npm run deploy` najprv spustí build ukážkovej aplikácie a následne ju zverejní na GitHub Pages.
 
 ## Migrácie
 
