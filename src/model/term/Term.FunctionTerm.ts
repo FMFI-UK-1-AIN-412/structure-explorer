@@ -1,6 +1,7 @@
 import Structure, { type DomainElement, type Valuation } from "../Structure";
 import type { Symbol } from "../Language";
 import Term from "./Term";
+import EvaluationError from "../EvaluationError";
 
 /**
  * Represent function term
@@ -37,7 +38,9 @@ class FunctionTerm extends Term {
     const interpretation = structure.iF.get(this.name);
 
     if (interpretation === undefined) {
-      throw new Error(
+      throw new EvaluationError(
+        "undefinedFunction",
+        this.name,
         `The interpretation of the function symbol ${this.name} is not defined.`,
       );
     }
@@ -45,12 +48,14 @@ class FunctionTerm extends Term {
     const interpretedValue = structure.iFGet(this.name, interpretedParams);
 
     if (interpretedValue === undefined) {
-      throw new Error(
-        `The interpretation of the function symbol ${this.name} for ${
+      throw new EvaluationError(
+        "undefinedFunctionValue",
+        this.name,
+        `The interpretation of the function symbol ${this.name} is not defined for ${
           interpretedParams.length > 1
             ? `(${interpretedParams})`
             : interpretedParams
-        } is not defined`,
+        }.`,
       );
     }
     return interpretedValue;
@@ -61,28 +66,12 @@ class FunctionTerm extends Term {
    * @returns {string}
    */
   toString(): string {
-    let res = this.name + "(";
-    for (let i = 0; i < this.terms.length; i++) {
-      if (i > 0) {
-        res += ", ";
-      }
-      res += this.terms[i].toString();
-    }
-    res += ")";
-    return res;
+    return `${this.name}(${this.terms.map((t) => t.toString()).join(", ")})`;
   }
 
   toTex(): string {
     const escapedName = this.name.replace(/_/g, "\\_");
-    let res = `\\text{${escapedName}}` + "(";
-    for (let i = 0; i < this.terms.length; i++) {
-      if (i > 0) {
-        res += ", ";
-      }
-      res += this.terms[i].toString();
-    }
-    res += ")";
-    return res;
+    return `\\text{${escapedName}}(${this.terms.map((t) => t.toTex()).join(", ")})`;
   }
 
   getVariables(): Set<Symbol> {

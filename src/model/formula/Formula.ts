@@ -1,3 +1,4 @@
+import { dev } from "../../shared/core/logging";
 import Expression from "../Expression";
 import type { Symbol } from "../Language";
 import { Structure, type Valuation } from "../Structure";
@@ -66,38 +67,48 @@ abstract class Formula extends Expression {
     sign: boolean,
     structure: Structure,
     e: Valuation,
-  ): SignedFormula[] {
-    const formulas = this.getSignedSubFormulas(sign);
+  ): [SignedFormula, number][] {
+    return dev.timed<[SignedFormula, number][]>(
+      "winningSubformulas duration",
+      () => {
+        const formulas = this.getSignedSubFormulas(sign);
 
-    let shortest = undefined;
-    let winning: SignedFormula[] = [];
+        let shortest = undefined;
+        let winning: [SignedFormula, number][] = [];
 
-    for (const { sign, formula } of formulas) {
-      const current = { sign: sign, formula: formula };
-      if (formula.eval(structure, e) !== sign) {
-        if (!shortest) {
-          shortest = current;
-          winning.push(shortest);
+        let idx = 0;
+        for (const { sign, formula } of formulas) {
+          const current = { sign: sign, formula: formula };
+          if (formula.eval(structure, e) !== sign) {
+            if (!shortest) {
+              shortest = current;
+              winning.push([shortest, idx]);
+            }
+
+            if (
+              shortest.formula.gameDepth(shortest.sign) >
+              formula.gameDepth(sign)
+            ) {
+              shortest = current;
+              winning = [[shortest, idx]];
+            } else if (
+              shortest.formula.gameDepth(shortest.sign) ===
+              formula.gameDepth(sign)
+            ) {
+              winning.push([current, idx]);
+            }
+          }
+
+          idx++;
         }
 
-        if (
-          shortest.formula.gameDepth(shortest.sign) > formula.gameDepth(sign)
-        ) {
-          shortest = current;
-          winning = [shortest];
-        } else if (
-          shortest.formula.gameDepth(shortest.sign) === formula.gameDepth(sign)
-        ) {
-          winning.push(current);
+        if (winning.length === 0) {
+          return formulas.map((f, idx) => [f, idx]);
         }
-      }
-    }
 
-    if (winning.length === 0) {
-      return formulas;
-    }
-
-    return winning;
+        return winning;
+      },
+    );
   }
 
   abstract eval(structure: Structure, e: Valuation): boolean;

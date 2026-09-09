@@ -1,0 +1,34 @@
+import { faQuestion } from "@fortawesome/free-solid-svg-icons";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { Button, OverlayTrigger, Popover } from "react-bootstrap";
+
+interface TooltipButtonProps {
+  text: React.ReactNode;
+}
+
+export default function TooltipButton({ text }: TooltipButtonProps) {
+  const popover = (
+    <Popover
+      className="mw-100 overflow-auto shadow-sm popover-bs-no-arrow"
+      style={{ width: "30rem", maxHeight: "90vh" }}
+    >
+      <Popover.Body>{text}</Popover.Body>
+    </Popover>
+  );
+
+  return (
+    <OverlayTrigger trigger="click" placement="auto" overlay={popover}>
+      <Button
+        className="rounded-circle d-inline-block d-flex p-1 btn-bd-info-outline help-tooltip-button"
+        variant="outline-dark"
+        title="Help"
+      >
+        <FontAwesomeIcon
+          icon={faQuestion}
+          size="sm"
+          style={{ width: "0.75rem", height: "0.75rem" }}
+        />
+      </Button>
+    </OverlayTrigger>
+  );
+}

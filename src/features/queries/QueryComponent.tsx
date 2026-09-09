@@ -1,7 +1,7 @@
 import { Button, Form, InputGroup, Stack } from "react-bootstrap";
 import {
   getQueryResults,
-  lockQuery,
+  toggleQueryLock,
   removeQuery,
   selectEvaluatedQuery,
   selectParsedQueryVariables,
@@ -16,12 +16,12 @@ import { useAppDispatch, useAppSelector, useAppStore } from "../../app/hooks";
 import { UndoActions } from "../undoHistory/undoHistory";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faTrash } from "@fortawesome/free-solid-svg-icons";
-import { selectTeacherMode } from "../teacherMode/teacherModeslice";
-import LockButton from "../../components_helper/LockButton";
-import ErrorFeedback from "../../components_helper/ErrorFeedback";
-import { useState } from "react";
+import { selectTeacherMode } from "../teacherMode/teacherModeSlice";
+import LockButton from "../../shared/ui/LockButton";
+import ErrorFeedback from "../../shared/ui/ErrorFeedback";
+import { useEffect, useState } from "react";
 import QueryResults from "./QueryResults";
-import { selectNonFormulaValidationError } from "../../common/formulas";
+import { selectNonFormulaValidationError } from "../../shared/core/formulas";
 
 export interface QueryComponentProps {
   idx: number;
@@ -30,6 +30,7 @@ export interface QueryComponentProps {
 export default function QueryComponent({ idx }: QueryComponentProps) {
   const dispatch = useAppDispatch();
   const store = useAppStore();
+  const [showResults, setShowResults] = useState(false);
   const [queryResults, setQueryResults] = useState<QueryResult[]>([]);
   const nonFormulaErrorMessage = useAppSelector(
     selectNonFormulaValidationError,
@@ -44,20 +45,35 @@ export default function QueryComponent({ idx }: QueryComponentProps) {
   const queryVariables = useAppSelector((state) =>
     selectParsedQueryVariables(state, idx),
   );
-  const { text: queryText, variablesText, locked } = query;
+
+  const serializedVars = queryVariables?.parsed?.join() ?? "";
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setShowResults(false);
+  }, [serializedVars]);
 
   const handleQueryButtonClick = () => {
     dispatch(updateQueryStaleness({ idx, stale: false }));
 
-    const queryResults = getQueryResults(store.getState(), idx);
-    setQueryResults(queryResults);
+    setQueryResults(getQueryResults(store.getState(), idx));
+    setShowResults(true);
   };
+
+  if (!query || !evaluatedQuery || !queryVariables) return null;
 
   const nonQueryError = nonFormulaErrorMessage
     ? new Error(nonFormulaErrorMessage)
     : undefined;
 
   const error = queryVariables.error || evaluatedQuery.error || nonQueryError;
+
+  const variablesInvalid =
+    !!queryVariables.error || queryVariables.parsed?.length === 0;
+  const queryInvalid =
+    !variablesInvalid && (!!evaluatedQuery.error || !!nonQueryError);
+
+  const { text: queryText, variablesText, locked } = query;
 
   return (
     <Stack gap={2}>
@@ -66,7 +82,7 @@ export default function QueryComponent({ idx }: QueryComponentProps) {
         direction="horizontal"
         style={{ width: "100%", alignItems: "flex-start" }}
       >
-        <InputGroup size="sm" hasValidation={!!error}>
+        <InputGroup size="sm" hasValidation={variablesInvalid || queryInvalid}>
           <InputGroup.Text className="input-group-fix-height">
             <InlineMath>{`\\psi_${idx + 1} (`}</InlineMath>
           </InputGroup.Text>
@@ -77,7 +93,7 @@ export default function QueryComponent({ idx }: QueryComponentProps) {
               dispatch(updateQueryVariablesText({ idx, text: e.target.value }))
             }
             disabled={locked}
-            isInvalid={!!queryVariables.error}
+            isInvalid={variablesInvalid}
             onBlur={() => dispatch(UndoActions.checkpoint())}
             style={{ maxWidth: "5rem" }}
           />
@@ -92,7 +108,7 @@ export default function QueryComponent({ idx }: QueryComponentProps) {
               dispatch(updateQueryText({ idx, text: e.target.value }))
             }
             disabled={locked}
-            isInvalid={!!evaluatedQuery.error || !!nonQueryError}
+            isInvalid={queryInvalid}
             onBlur={() => dispatch(UndoActions.checkpoint())}
           />
 
@@ -111,13 +127,13 @@ export default function QueryComponent({ idx }: QueryComponentProps) {
           {teacherMode && (
             <LockButton
               locked={locked}
-              locker={() => dispatch(lockQuery({ idx }))}
+              locker={() => dispatch(toggleQueryLock({ idx }))}
             />
           )}
 
           <ErrorFeedback
-            error={evaluatedQuery.error || nonQueryError}
-            text={queryText}
+            error={error}
+            text={queryVariables.error ? variablesText : queryText}
           />
         </InputGroup>
 
@@ -126,19 +142,19 @@ export default function QueryComponent({ idx }: QueryComponentProps) {
           size="sm"
           style={{ width: "fit-content" }}
           onClick={handleQueryButtonClick}
-          disabled={!!error}
+          disabled={variablesInvalid || queryInvalid}
         >
           Query
         </Button>
       </Stack>
 
-      {queryResults.length > 0 && (
+      {showResults && (
         <QueryResults
           queryIdx={idx}
           stale={query.stale}
           queryVariables={queryVariables.parsed ?? []}
           results={queryResults}
-          onResultsReset={() => setQueryResults([])}
+          onResultsClose={() => setShowResults(false)}
         />
       )}
     </Stack>

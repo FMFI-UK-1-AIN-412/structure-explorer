@@ -6,13 +6,14 @@ import type { QueryResult } from "./queriesSlice";
 import { useState } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faWarning } from "@fortawesome/free-solid-svg-icons";
+import { latex } from "../../shared/core/utils";
 
 export interface QueryResultsProps {
   queryIdx: number;
   stale: boolean;
   results: QueryResult[];
   queryVariables: string[];
-  onResultsReset: () => void;
+  onResultsClose: () => void;
 }
 
 export default function QueryResults({
@@ -20,22 +21,21 @@ export default function QueryResults({
   stale,
   results,
   queryVariables,
-  onResultsReset,
+  onResultsClose,
 }: QueryResultsProps) {
   const queryVariablesLen = queryVariables.length;
-  const altVariables = queryVariables.map((v) => `${v}_1`);
+  const queryVarsEscaped = queryVariables.map((v) => latex().escape(v).get());
+  const altVariables = queryVarsEscaped.map((v) => `${v}_1`);
 
   const correctAltVarsString =
     altVariables.length > 1 ? `(${altVariables})` : altVariables;
   const correctDomainPower =
-    queryVariables.length > 1 ? `D^${queryVariablesLen}` : "D";
-  const variablePairs = queryVariables
-    .map((v, i) => `(${v}, ${altVariables[i]})`)
+    queryVarsEscaped.length > 1 ? `D^${queryVariablesLen}` : "D";
+  const variablePairs = queryVarsEscaped
+    .map((v, i) => `(\\mathsf{${v}}/ ${altVariables[i]})`)
     .join("");
 
   const queryResultString = `\\ \\{${correctAltVarsString} \\in ${correctDomainPower} \\mid \\mathcal{M} \\models  \\psi_${queryIdx + 1}[e${variablePairs}]\\}`;
-
-  const correct = results.filter(({ ok }) => ok);
 
   return (
     <div className="query-result-container">
@@ -45,13 +45,12 @@ export default function QueryResults({
           <InlineMath>{queryResultString}</InlineMath>
         </span>
 
-        <CloseButton onClick={onResultsReset} />
+        <CloseButton onClick={onResultsClose} />
       </div>
 
       <QueryResultTable
         stale={stale}
-        results={correct}
-        kind="correct"
+        results={results}
         variables={altVariables}
       />
     </div>
@@ -64,17 +63,21 @@ const DISPLAY_INCREMENT = 10;
 interface QueryResultTableProps {
   results: QueryResult[];
   stale: boolean;
-  kind: "correct" | "incorrect";
   variables: string[];
 }
 
 function QueryResultTable({
   results,
   stale,
-  kind,
   variables,
 }: QueryResultTableProps) {
   const [displayCount, setDisplayCount] = useState(MIN_DISPLAY_COUNT);
+  const [shownResults, setShownResults] = useState(results);
+
+  if (shownResults !== results) {
+    setShownResults(results);
+    setDisplayCount(MIN_DISPLAY_COUNT);
+  }
 
   const handleDisplayCountChange = (type: "more" | "less") => {
     const displayIncrement = DISPLAY_INCREMENT * (type === "more" ? 1 : -1);
@@ -112,7 +115,7 @@ function QueryResultTable({
     return "No results found.";
   };
 
-  const titleClass = stale ? "warning" : didFindResults ? "success" : "danger";
+  const titleClass = stale ? "error" : didFindResults ? "success" : "danger";
 
   return (
     <>
@@ -139,9 +142,9 @@ function QueryResultTable({
             </thead>
 
             <tbody>
-              {results.slice(0, displayCount).map((r) => (
-                <tr key={r.valuation.join(",")}>
-                  {r.valuation.map((val, i) => (
+              {results.slice(0, displayCount).map((valuation) => (
+                <tr key={valuation.join(",")}>
+                  {valuation.map((val, i) => (
                     <td key={i}>{val}</td>
                   ))}
                 </tr>
@@ -152,7 +155,7 @@ function QueryResultTable({
       )}
 
       {results.length > MIN_DISPLAY_COUNT && (
-        <div className={`query-result-display-buttons ${kind}`}>
+        <div className="query-result-display-buttons">
           <DisplayCountButton
             kind="less"
             onClick={handleDisplayCountChange}

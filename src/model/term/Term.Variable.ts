@@ -1,6 +1,8 @@
+import { latex } from "../../shared/core/utils";
 import type { Symbol } from "../Language";
 import { Structure, type Valuation, type DomainElement } from "../Structure";
 import Term from "./Term";
+import EvaluationError from "../EvaluationError";
 
 /**
  * Variable
@@ -20,15 +22,19 @@ class Variable extends Term {
 
   /**
    * Return intepretation of variable.
-   * @param {Structure} structure
+   * @param {Structure} _
    * @param {Map} e variables valuation
    * @return {DomainElement} domain item
    */
   eval(_: Structure, e: Valuation): DomainElement {
     const v = e.get(this.name);
     if (v === undefined) {
-      throw new Error(`The variable ${this.name} is free,
-        but it is not assigned any value by the variable assignment 𝑒.`);
+      throw new EvaluationError(
+        "unassignedVariable",
+        this.name,
+        `The variable ${this.name} is free,
+        but it is not assigned any value by the variable assignment 𝑒.`,
+      );
     }
     return v;
   }
@@ -42,7 +48,7 @@ class Variable extends Term {
   }
 
   toTex(): string {
-    return this.toString();
+    return latex().escape(this.name).get();
   }
 
   createCopy(): Variable {

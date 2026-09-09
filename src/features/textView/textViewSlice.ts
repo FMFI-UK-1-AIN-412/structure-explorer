@@ -12,8 +12,8 @@ import {
   type StructuredOf,
   type TextViewSyncEntry,
 } from "./textViews";
-import type { SyntaxError } from "../../common/errors";
-import { dev } from "../../common/logging";
+import { createSyntaxError, type SyntaxError } from "../../shared/core/errors";
+import { dev } from "../../shared/core/logging";
 import { UndoActions } from "../undoHistory/undoHistory";
 
 export interface TextViewEntry {
@@ -103,9 +103,9 @@ export const updateTextView = ({
 
     dispatch(textViewChanged({ key, type, value, parseError: undefined }));
 
-    dev.time(`Duration of ${key} text parent state update`);
-    dispatch(updateActionByTextType(type, key, parsed));
-    dev.timeEnd(`Duration of ${key} text parent state update`);
+    dev.timed(`Duration of ${key} text parent state update`, () =>
+      dispatch(updateActionByTextType(type, key, parsed)),
+    );
   };
 };
 
@@ -114,14 +114,12 @@ export const textViewCheckpoint = (): AppThunk => (dispatch, getState) => {
   const previousTextView = getState()._latestUnfiltered?.textView;
 
   if (!previousTextView) {
-    dispatch(UndoActions.checkpoint());
-    return;
+    return void dispatch(UndoActions.checkpoint());
   }
 
   for (const key in currentTextView) {
     if (currentTextView[key].value !== previousTextView[key]?.value) {
-      dispatch(UndoActions.checkpoint());
-      return;
+      return void dispatch(UndoActions.checkpoint());
     }
   }
 };
@@ -157,11 +155,7 @@ const parseByTextType = <T extends TextViewType>(
   } catch (error) {
     if (error instanceof ParserSyntaxError) {
       return {
-        error: {
-          kind: "syntax",
-          message: error.message,
-          location: error.location,
-        } as SyntaxError,
+        error: createSyntaxError(error.message, error.location),
       };
     }
 

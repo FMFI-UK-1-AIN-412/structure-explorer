@@ -3,12 +3,12 @@ import type { PayloadAction } from "@reduxjs/toolkit";
 import type { RootState } from "../../app/store";
 import { type PayloadActionSource } from "../language/languageSlice";
 import { selectValidatedDomain } from "../structure/structureSlice";
-import { createValidationError } from "../../common/errors";
+import { createSemanticError } from "../../shared/core/errors";
 import {
   prepareWithSourceMeta,
   type LockableValue,
   type Validated,
-} from "../../common/redux";
+} from "../../shared/core/redux";
 import type { SerializedVariablesState } from "./validationSchema";
 
 export type VariableRepresentation = { from: string; to: string };
@@ -56,8 +56,8 @@ export const selectValidatedVariables = createSelector(
         (domain.parsed && domain.parsed.includes(to) == false) ||
         !domain.parsed
       ) {
-        result.error = createValidationError(
-          `${to} is not an element of domain`,
+        result.error = createSemanticError(
+          `${to} is not an element of domain.`,
         );
       }
     }

@@ -1,155 +1,95 @@
 import { Stack } from "react-bootstrap";
-import InputGroupTitle from "../../components_helper/InputGroupTitle";
-import { useAppDispatch, useAppSelector } from "../../app/hooks";
 import { InlineMath } from "react-katex";
+import ComponentCard from "../../layout/ComponentCard/ComponentCard.tsx";
+import InterpretationSection from "./InterpretationSection.tsx";
+import TextView from "../textView/TextViewEditor.tsx";
 import {
   lockDomain,
+  lockFunctionSymbols,
   lockInterpretationConstants,
   lockInterpretationPredicates,
-  lockFunctionSymbols,
+  selectDomainLock,
   selectIcLock,
-  selectIpLock,
   selectIfLock,
-} from "./structureSlice";
+  selectIpLock,
+} from "./structureSlice.ts";
+import TupleInterpretationEditor from "./TupleInterpretationEditor.tsx";
 import {
-  selectSymbolsClash,
   selectValidatedConstants,
   selectValidatedFunctions,
   selectValidatedPredicates,
-} from "../language/languageSlice";
-import InterpretationEditor from "./InterpretationEditor";
-import ComponentCard from "../../components_helper/ComponentCard/ComponentCard.tsx";
-import {
-  selectValidatedTextView,
-  updateTextView,
-} from "../textView/textViewSlice.ts";
-import TextView from "../textView/TextViewEditor.tsx";
+} from "../language/languageSlice.ts";
+import { useInstanceId } from "../../providers/instanceIdContext.tsx";
+import { getAffixes } from "../textView/textViewAffixes.tsx";
 
 export default function StructureComponent() {
-  const dispatch = useAppDispatch();
-
-  const domainTextView = useAppSelector((state) =>
-    selectValidatedTextView(state, "domain"),
-  );
-  const domainLocked = useAppSelector(
-    (state) => state.present.structure.domain.locked,
-  );
-
-  const constants = useAppSelector(selectValidatedConstants);
-  const predicates = useAppSelector(selectValidatedPredicates);
-  const functions = useAppSelector(selectValidatedFunctions);
-  const symbolsClash = useAppSelector(selectSymbolsClash);
+  const instanceId = useInstanceId();
 
   return (
     <ComponentCard
       heading={
         <>
-          Structure <InlineMath>{String.raw`\mathcal{M} = (D, i)`}</InlineMath>
+          Structure <InlineMath>{"\\mathcal{M} = (D, i)"}</InlineMath>
         </>
       }
       className="structure-component-card"
       help={help}
     >
       <Stack gap={3}>
-        <InputGroupTitle
-          label={"Domain"}
-          id="domain"
-          prefix={<InlineMath>{"D = \\{"}</InlineMath>}
-          suffix={<InlineMath>{"\\}"}</InlineMath>}
+        <TextView
+          id={`domain-${instanceId}`}
+          lock={() => lockDomain()}
+          selectLock={selectDomainLock}
+          name="domain"
+          textViewType="domain"
           placeholder="Domain"
-          text={domainTextView.value}
-          onChange={(e) => {
-            dispatch(updateTextView({ type: "domain", value: e.target.value }));
-          }}
-          locker={() => dispatch(lockDomain())}
-          lockChecker={domainLocked}
-          error={domainTextView.error}
+          label="Domain"
+          {...getAffixes({ type: "domain" })}
         />
 
-        {!symbolsClash && !constants.error && constants.parsed.size > 0 && (
-          <div className="structure-component-section">
-            <h6 className="fw-normal lh-base">Constants interpretation</h6>
+        <InterpretationSection
+          sectionTitle="Constants interpretation"
+          selectSymbols={selectValidatedConstants}
+          renderSymbol={(name) => (
+            <TextView
+              id={`constant-${name}-${instanceId}`}
+              key={name}
+              name={name}
+              textViewType="constant_interpretation"
+              lock={(name) => lockInterpretationConstants({ key: name })}
+              selectLock={selectIcLock}
+              {...getAffixes({ type: "constant_interpretation", name })}
+            />
+          )}
+        />
 
-            <Stack gap={3}>
-              {Array.from(constants.parsed ?? []).map((name) => (
-                <TextView
-                  name={name}
-                  id={`constant-${name}`}
-                  textViewType="constant_interpretation"
-                  key={`constant-${name}`}
-                  lockSelector={selectIcLock}
-                  locker={() => {
-                    dispatch(lockInterpretationConstants({ key: name }));
-                  }}
-                />
-              ))}
-            </Stack>
-          </div>
-        )}
+        <InterpretationSection
+          sectionTitle="Predicates interpretation"
+          selectSymbols={selectValidatedPredicates}
+          renderSymbol={([name, arity]) => (
+            <TupleInterpretationEditor
+              id={`predicate-${name}-${arity}-${instanceId}`}
+              key={`predicate-${name}`}
+              tupleInfo={{ name, arity, type: "predicate" }}
+              lock={(name) => lockInterpretationPredicates({ key: name })}
+              selectLock={selectIpLock}
+            />
+          )}
+        />
 
-        {!symbolsClash && !predicates.error && predicates.parsed.size > 0 && (
-          <div className="structure-component-section">
-            <h6 className="fw-normal">Predicates interpretation</h6>
-
-            <Stack gap={3}>
-              {Array.from(predicates.parsed ?? []).map(([name, arity]) => (
-                <InterpretationEditor
-                  type="predicate"
-                  name={name}
-                  id={`predicate-${name}-${arity}`}
-                  key={`predicate-${name}`}
-                  textViewType="predicate_interpretation"
-                  lockSelector={selectIpLock}
-                  arity={arity}
-                  locker={() =>
-                    dispatch(lockInterpretationPredicates({ key: name }))
-                  }
-                  onChange={(e) => {
-                    dispatch(
-                      updateTextView({
-                        type: "predicate_interpretation",
-                        key: name,
-                        value: e.target.value,
-                      }),
-                    );
-                  }}
-                />
-              ))}
-            </Stack>
-          </div>
-        )}
-
-        {!symbolsClash && !functions.error && functions.parsed.size > 0 && (
-          <div className="structure-component-section">
-            <h3 className="h6 fw-normal">Functions interpretation</h3>
-
-            <Stack gap={3}>
-              {Array.from(functions.parsed ?? []).map(([name, arity]) => (
-                <InterpretationEditor
-                  name={name}
-                  type="function"
-                  id={`function-${name}-${arity}`}
-                  key={`function-${name}`}
-                  textViewType="function_interpretation"
-                  lockSelector={selectIfLock}
-                  arity={arity}
-                  onChange={(e) => {
-                    dispatch(
-                      updateTextView({
-                        type: "function_interpretation",
-                        key: name,
-                        value: e.target.value,
-                      }),
-                    );
-                  }}
-                  locker={() => {
-                    dispatch(lockFunctionSymbols({ key: name }));
-                  }}
-                />
-              ))}
-            </Stack>
-          </div>
-        )}
+        <InterpretationSection
+          sectionTitle="Functions interpretation"
+          selectSymbols={selectValidatedFunctions}
+          renderSymbol={([name, arity]) => (
+            <TupleInterpretationEditor
+              id={`function-${name}-${arity}-${instanceId}`}
+              key={`function-${name}`}
+              tupleInfo={{ name, arity, type: "function" }}
+              lock={(name) => lockFunctionSymbols({ key: name })}
+              selectLock={selectIfLock}
+            />
+          )}
+        />
       </Stack>
     </ComponentCard>
   );

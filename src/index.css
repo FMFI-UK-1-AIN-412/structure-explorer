@@ -1,0 +1,61 @@
+.structure-explorer {
+  --se-info: #2b7fff;
+  --se-info-border-color: #51a2ff;
+}
+
+.custom-bs-tooltip {
+  --bs-tooltip-bg: rgba(33, 37, 41);
+  --bs-tooltip-color: var(--bs-white);
+  --bs-tooltip-padding-x: 0.5rem;
+  --bs-tooltip-padding-y: 0.125rem;
+  --bs-tooltip-max-width: 500px;
+  --bs-tooltip-font-size: 14px;
+  text-wrap: nowrap;
+}
+
+.custom-bs-tooltip.sm {
+  --bs-tooltip-font-size: 12px;
+  --bs-tooltip-max-width: 500px;
+}
+
+.custom-bs-tooltip.tex {
+  --bs-tooltip-font-size: 13px;
+}
+
+.custom-bs-tooltip.mb {
+  margin-bottom: 0.125rem;
+}
+
+.popover-bs-no-arrow .popover-arrow {
+  display: none;
+}
+
+.structure-explorer .modal-content {
+  height: 100%;
+  width: 100%;
+
+  background-color: var(--bs-white);
+  border: none;
+  box-shadow: var(--bs-box-shadow-sm);
+  background-clip: unset;
+}
+
+.structure-explorer.modal.fade .modal-dialog {
+  transform: none;
+  transform: scale(0.95);
+
+  transition: all 0.2s ease-out;
+  opacity: 0;
+}
+
+.structure-explorer.modal.show .modal-dialog {
+  transform: scale(1);
+  opacity: 1;
+}
+
+/* fixes safari selecting elements on page when draggin a connection line */
+body:has(.structure-explorer .react-flow__connectionline),
+body:has(.structure-explorer .react-flow__selection) {
+  -webkit-user-select: none;
+  user-select: none;
+}

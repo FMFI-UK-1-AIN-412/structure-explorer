@@ -1,6 +1,7 @@
-import Structure, { type DomainElement, type Valuation } from "../Structure";
+import Structure, { type DomainElement } from "../Structure";
 import type { Symbol } from "../Language";
 import Term from "./Term";
+import EvaluationError from "../EvaluationError";
 
 /**
  * Constant
@@ -21,13 +22,14 @@ class Constant extends Term {
   /**
    * Return intepretation of the constant
    * @param {Structure} structure Structure
-   * @param {Map} _e variables valuation
    * @return {string} domain item
    */
-  eval(structure: Structure, _e: Valuation): DomainElement {
+  eval(structure: Structure): DomainElement {
     const c = structure.iC.get(this.name);
     if (c === undefined || c === "") {
-      throw new Error(
+      throw new EvaluationError(
+        "undefinedConstant",
+        this.name,
         `The interpretation of the constant ${this.name} is not defined`,
       );
     }

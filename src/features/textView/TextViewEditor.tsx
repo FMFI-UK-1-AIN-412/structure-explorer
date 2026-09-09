@@ -1,60 +1,101 @@
-import { InlineMath } from "react-katex";
+import { Form, InputGroup } from "react-bootstrap";
 import { useAppDispatch, useAppSelector } from "../../app/hooks";
-import InputGroupTitle from "../../components_helper/InputGroupTitle";
+import { selectTeacherMode } from "../teacherMode/teacherModeSlice";
+import LockButton from "../../shared/ui/LockButton";
+import ErrorFeedback from "../../shared/ui/ErrorFeedback";
+import {
+  selectValidatedTextView,
+  textViewCheckpoint,
+  updateTextView,
+} from "./textViewSlice";
 import type { TextViewType } from "./textViews";
-import { selectValidatedTextView, updateTextView } from "./textViewSlice";
 import type { RootState } from "../../app/store";
+import type { UnknownAction } from "@reduxjs/toolkit";
+import type { ReactNode } from "react";
 
 export interface TextViewEditorProps {
   id: string;
+  label?: string;
+  placeholder?: string;
+  prefix: ReactNode;
+  suffix: ReactNode;
   name: string;
   textViewType: TextViewType;
-  locker: () => void;
-  lockSelector: (state: RootState, name: string) => boolean;
+  lock: (name: string) => UnknownAction;
+  selectLock: (state: RootState, name: string) => boolean;
   controlButtons?: React.ReactNode;
+  disabledOverride?: boolean;
 }
 
 export default function TextView({
   id,
   name,
+  label = "",
+  placeholder = "",
   textViewType,
-  locker,
-  lockSelector,
-  controlButtons,
+  prefix,
+  suffix,
+  lock,
+  selectLock,
+  controlButtons = null,
+  disabledOverride = false,
 }: TextViewEditorProps) {
   const dispatch = useAppDispatch();
-
-  const locked = useAppSelector((state) => lockSelector(state, name));
+  const teacherMode = useAppSelector(selectTeacherMode) ?? false;
+  const locked = useAppSelector((state) => selectLock(state, name));
   const textView = useAppSelector((state) =>
     selectValidatedTextView(state, textViewType, name),
   );
 
-  const isConstant = textViewType === "constant_interpretation";
-
-  const escapedName = name.replace(/_/g, "\\_");
-  const prefixRawNoEnd = String.raw`i(\text{\textsf{${escapedName}}})`;
-  const prefixRaw = String.raw`${prefixRawNoEnd} = ${isConstant ? "" : "\\{"}`;
-  const suffixRaw = String.raw`\}`;
+  const { value: text, error } = textView;
+  const errorId = `${id}-feedback`;
 
   const handleTextViewChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     dispatch(
-      updateTextView({ key: name, type: textViewType, value: e.target.value }),
+      updateTextView({
+        key: name,
+        type: textViewType,
+        value: e.target.value,
+      }),
     );
   };
 
   return (
-    <InputGroupTitle
-      label=""
-      id={id}
-      prefix={<InlineMath>{prefixRaw}</InlineMath>}
-      suffix={isConstant ? "" : <InlineMath>{suffixRaw}</InlineMath>}
-      controlButtons={controlButtons}
-      placeholder=""
-      text={textView.value}
-      lockChecker={locked}
-      locker={locker}
-      onChange={handleTextViewChange}
-      error={textView.error}
-    />
+    <Form.Group className="flex-grow-1">
+      {label !== "" && <Form.Label htmlFor={id}>{label}</Form.Label>}
+      <InputGroup hasValidation={!!error} size="sm">
+        {prefix && (
+          <InputGroup.Text className="input-group-fix-height">
+            {prefix}
+          </InputGroup.Text>
+        )}
+
+        <Form.Control
+          placeholder={placeholder}
+          aria-describedby={error ? errorId : undefined}
+          aria-invalid={!!error}
+          autoComplete="off"
+          value={text}
+          onChange={handleTextViewChange}
+          id={id}
+          isInvalid={!!error}
+          disabled={disabledOverride || locked}
+          onBlur={() => dispatch(textViewCheckpoint())}
+        />
+
+        {suffix && (
+          <InputGroup.Text className="input-group-fix-height">
+            {suffix}
+          </InputGroup.Text>
+        )}
+
+        {controlButtons}
+
+        {teacherMode && (
+          <LockButton locker={() => dispatch(lock(name))} locked={locked} />
+        )}
+        <ErrorFeedback id={errorId} error={error} text={text} />
+      </InputGroup>
+    </Form.Group>
   );
 }

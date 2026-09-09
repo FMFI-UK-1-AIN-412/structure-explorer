@@ -1,31 +1,32 @@
 import { Dropdown, DropdownButton, Stack, Table } from "react-bootstrap";
 import FormulaComponent from "./FormulaComponent";
 import Button from "react-bootstrap/Button";
-import { useAppDispatch, useAppSelector } from "../../app/hooks";
 import {
-  selectFormulas,
-  type FormulaState,
+  useAppDispatch,
+  useAppSelector,
+  useShallowAppSelector,
+} from "../../app/hooks";
+import {
+  selectFormulaNames,
+  selectFormulaCount,
   addFormulas,
 } from "./formulasSlice";
 import { InlineMath } from "react-katex";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faCheckDouble, faPlus } from "@fortawesome/free-solid-svg-icons";
 import PrettifyButton from "./PrettifyButton";
-import ComponentCard from "../../components_helper/ComponentCard/ComponentCard.tsx";
+import ComponentCard from "../../layout/ComponentCard/ComponentCard.tsx";
 import { UndoActions } from "../undoHistory/undoHistory.ts";
 import {
   useSyncFormulasContext,
   type FormulaType,
-} from "../../logicContext.ts";
-import { useState } from "react";
+} from "../../providers/logicContext";
+import { useMemo, useState } from "react";
 import React from "react";
 
 export default function FormulaCard() {
   const dispatch = useAppDispatch();
-  const allFormulas = useAppSelector(selectFormulas);
-  const presentContextFormulas = new Set(
-    allFormulas.flatMap(({ name }) => (name ? [name] : [])),
-  );
+  const formulaCount = useAppSelector(selectFormulaCount);
 
   return (
     <ComponentCard
@@ -41,9 +42,9 @@ export default function FormulaCard() {
       <Stack
         gap={2}
         direction="horizontal"
-        className={`${allFormulas.length > 0 ? "mb-3" : ""} flex-wrap formula-card-header`}
+        className={`${formulaCount > 0 ? "mb-3" : ""} flex-wrap formula-card-header`}
       >
-        {allFormulas.length === 0 && (
+        {formulaCount === 0 && (
           <Button
             variant="success"
             size="sm"
@@ -56,24 +57,16 @@ export default function FormulaCard() {
           </Button>
         )}
 
-        <ContextFormulasDropdown
-          presentContextFormulas={presentContextFormulas}
-        />
+        <ContextFormulasDropdown />
 
-        <div>{allFormulas.length > 0 && <PrettifyButton />}</div>
+        <div>{formulaCount > 0 && <PrettifyButton />}</div>
       </Stack>
 
-      {allFormulas.map((formula: FormulaState, index: number) => (
-        <FormulaComponent
-          id={index}
-          name={formula.name}
-          key={index}
-          text={formula.text}
-          guess={formula.guess}
-        />
+      {Array.from({ length: formulaCount }, (_, index) => (
+        <FormulaComponent id={index} key={index} />
       ))}
 
-      {allFormulas.length > 0 && (
+      {formulaCount > 0 && (
         <Button
           variant="success"
           size="sm"
@@ -95,15 +88,15 @@ const formulaTypeDisplayNames: Record<FormulaType, string> = {
   theorem: "Theorems",
 };
 
-interface FormulaDropdownProps {
-  presentContextFormulas: Set<string>;
-}
-
-function ContextFormulasDropdown({
-  presentContextFormulas,
-}: FormulaDropdownProps) {
+function ContextFormulasDropdown() {
   const [showDropdown, setShowDropdown] = useState(false);
   const dispatch = useAppDispatch();
+
+  const contextFormulaNames = useShallowAppSelector(selectFormulaNames);
+  const presentContextFormulas = useMemo(
+    () => new Set(contextFormulaNames),
+    [contextFormulaNames],
+  );
 
   const { formulas, formulasByType, hasContext } = useSyncFormulasContext();
   const notYetAdded = formulas
@@ -144,33 +137,30 @@ function ContextFormulasDropdown({
       >
         <FontAwesomeIcon icon={faCheckDouble} size="sm" /> Add all
       </Dropdown.Item>
-      {nonEmptyFormulasByType.length > 0 ? (
-        nonEmptyFormulasByType.map(([formulaType, formulaWithType]) => (
-          <React.Fragment key={formulaType}>
-            <Dropdown.Divider />
-            <Dropdown.ItemText className="drop-down-title-text">
-              {formulaTypeDisplayNames[formulaType]}
-            </Dropdown.ItemText>
 
-            {formulaWithType.map(({ name, formula }) => (
-              <Dropdown.Item
-                key={name}
-                as={Button}
-                size="sm"
-                disabled={presentContextFormulas.has(name)}
-                onClick={() => {
-                  dispatch(addFormulas([{ name, text: formula }]));
-                  dispatch(UndoActions.checkpoint());
-                }}
-              >
-                {name}
-              </Dropdown.Item>
-            ))}
-          </React.Fragment>
-        ))
-      ) : (
-        <Dropdown.ItemText>No formulas to add.</Dropdown.ItemText>
-      )}
+      {nonEmptyFormulasByType.map(([formulaType, formulaWithType]) => (
+        <React.Fragment key={formulaType}>
+          <Dropdown.Divider />
+          <Dropdown.ItemText className="drop-down-title-text">
+            {formulaTypeDisplayNames[formulaType]}
+          </Dropdown.ItemText>
+
+          {formulaWithType.map(({ name, formula }) => (
+            <Dropdown.Item
+              key={name}
+              as={Button}
+              size="sm"
+              disabled={presentContextFormulas.has(name)}
+              onClick={() => {
+                dispatch(addFormulas([{ name, text: formula }]));
+                dispatch(UndoActions.checkpoint());
+              }}
+            >
+              {name}
+            </Dropdown.Item>
+          ))}
+        </React.Fragment>
+      ))}
     </DropdownButton>
   );
 }

@@ -2,6 +2,7 @@ import Formula, { type SignedFormula, SignedFormulaType } from "./Formula";
 import Term from "../term/Term";
 import Structure, { type Valuation } from "../Structure";
 import type { Symbol } from "../Language";
+import EvaluationError from "../EvaluationError";
 
 /**
  * Represent predicate symbol
@@ -30,39 +31,19 @@ class PredicateAtom extends Formula {
    * @return {boolean}
    */
   eval(structure: Structure, e: Valuation): boolean {
-    let translatedTerms: string[] = [];
-    try {
-      translatedTerms = this.terms.map((term) => term.eval(structure, e));
-    } catch (error) {
-      //console.log(error);
-      throw error;
-    }
+    const translatedTerms = this.terms.map((term) => term.eval(structure, e));
 
     const interpretation = structure.iP.get(this.name);
-    //console.log(translatedTerms);
 
     if (interpretation === undefined) {
-      throw new Error(
+      throw new EvaluationError(
+        "undefinedPredicate",
+        this.name,
         `The interpretation of the predicate symbol ${this.name} is not defined`,
       );
     }
-    //console.log();
-
-    // const arr = ["a"];
-    // const set = new Set();
-    // set.add(arr);
-    // console.log(`${set.has(["a"])}`);
-
-    //sets compare elements by reference => arr !== ["a"] switch to arrays?
-    // let tru = false;
-    // interpretation.forEach((tuple) => {
-    //   if (JSON.stringify(tuple) === JSON.stringify(translatedTerms)) {
-    //     tru = true;
-    //   }
-    // });
 
     return structure.iPHas(this.name, translatedTerms);
-    //return interpretation.has(translatedTerms);
   }
 
   /**
@@ -96,20 +77,6 @@ class PredicateAtom extends Formula {
   getFreeVariables(): Set<Symbol> {
     return this.getVariables();
   }
-
-  // createCopy(): PredicateAtom {
-  //   return new PredicateAtom(
-  //     this.name,
-  //     this.terms.map((term) => term.createCopy())
-  //   );
-  // }
-
-  // substitute(from, to, bound) {
-  //   return new PredicateAtom(
-  //     this.name,
-  //     this.terms.map((term) => term.substitute(from, to, bound))
-  //   );
-  // }
 }
 
 export default PredicateAtom;

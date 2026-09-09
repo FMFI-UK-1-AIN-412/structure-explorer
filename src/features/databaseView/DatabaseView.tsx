@@ -1,121 +1,39 @@
 import "../matrixView/TableView.css";
 
 import { Button, Form, Table } from "react-bootstrap";
-import { useAppDispatch, useAppSelector } from "../../app/hooks";
 import {
-  isValidTuple,
-  selectDatabaseViewValues,
-  updateDatabaseViewValue,
+  useAppDispatch,
+  useAppSelector,
+  useShallowAppSelector,
+} from "../../app/hooks";
+import {
+  databaseCellBlurred,
+  databaseCellChanged,
+  databaseTupleDeleted,
+  selectDatabaseCell,
+  selectDatabaseIsEmpty,
+  selectDatabaseRow,
+  selectDatabaseRowCount,
 } from "./databaseViewSlice";
-import { useMemo, useRef } from "react";
+import { useRef } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faTrash } from "@fortawesome/free-solid-svg-icons";
-import { selectDomain, type TupleType } from "../structure/structureSlice";
-import { UndoActions } from "../undoHistory/undoHistory";
-import EmptyPlaceholder from "../../components_helper/EmptyPlaceholder/EmptyPlaceholder";
-import { selectUnaryPreds } from "../graphView/graphs/graphSlice";
-import { selectPredicatesToDisplay } from "../editorToolbar/editorToolbarSlice";
-import { getUnaryPredicateToColorMap } from "../drawerEditor/unaryPredicateColors";
-import { RelevantPredicatesIndicator } from "../../components_helper/RelevantPredicatesIndicator/RelevantPredicatesIndicator";
+import EmptyPlaceholder from "../../shared/ui/EmptyPlaceholder/EmptyPlaceholder";
+import { DomainPredicateIndicator } from "../drawerEditor/DomainPredicateIndicator";
+import { getTupleLength, type TupleInfo } from "../structure/tupleInfo";
+import type { DrawerEditorProps } from "../drawerEditor/drawerEditorAdapter";
 
-interface DatabaseViewProps {
-  tupleName: string;
-  tupleArity: number;
-  tupleType: TupleType;
-  locked: boolean;
-}
+export default function DatabaseView({ tupleInfo, locked }: DrawerEditorProps) {
+  const columnCount = getTupleLength(tupleInfo.type, tupleInfo.arity);
 
-export default function DatabaseView({
-  tupleName,
-  tupleArity,
-  tupleType,
-  locked,
-}: DatabaseViewProps) {
-  const dispatch = useAppDispatch();
-  const checkpointOnBlurOverride = useRef<boolean | null>(null);
-
-  const { values, leftovers } = useAppSelector((state) =>
-    selectDatabaseViewValues(state, tupleName, tupleType, tupleArity),
+  const rowCount = useAppSelector((state) =>
+    selectDatabaseRowCount(state, tupleInfo),
+  );
+  const isEmpty = useAppSelector((state) =>
+    selectDatabaseIsEmpty(state, tupleInfo),
   );
 
-  const duplicateTuples = useMemo(() => findDuplicateTuples(values), [values]);
-
-  const { value: domain } = useAppSelector(selectDomain);
-
-  const lastTupleIsValid =
-    tupleType !== "function" &&
-    (values.length === 0 || isValidTuple(values.at(-1)!, tupleArity));
-
-  const lastTuple = Array.from({ length: tupleArity }, () => "");
-
-  const handleTupleChange = (
-    tupleIdx: number,
-    elementIdx: number,
-    value: string,
-  ) => {
-    let newDomainTuple: string[][] = [];
-
-    if (lastTupleIsValid && tupleIdx === values.length) {
-      lastTuple[elementIdx] = value;
-      newDomainTuple = [...values, lastTuple];
-    } else {
-      const newTuple = [...values[tupleIdx]];
-      newTuple[elementIdx] = value;
-
-      if (countEmpty(newTuple) === 1 && countEmpty(values[tupleIdx]) === 0)
-        checkpointOnBlurOverride.current = true;
-      else if (newTuple.every((e) => e === ""))
-        checkpointOnBlurOverride.current = false;
-
-      newDomainTuple = [...values];
-      newDomainTuple[tupleIdx] = newTuple;
-    }
-
-    dispatch(
-      updateDatabaseViewValue({
-        type: tupleType,
-        tupleName,
-        domainTuple: newDomainTuple,
-        arity: correctedArity,
-      }),
-    );
-  };
-
-  const handleTupleDelete = (tupleIdx: number) => {
-    dispatch(
-      updateDatabaseViewValue({
-        type: tupleType,
-        tupleName,
-        domainTuple: values.filter((_, idx) => idx !== tupleIdx),
-        arity: correctedArity,
-      }),
-    );
-
-    if (values[tupleIdx].every((e) => e !== ""))
-      dispatch(UndoActions.checkpoint());
-  };
-
-  const handleCheckpointOnBlur = (tupleIdx: number) => {
-    if (tupleType === "function") {
-      dispatch(UndoActions.checkpoint());
-      return;
-    }
-
-    if (checkpointOnBlurOverride.current !== null) {
-      if (checkpointOnBlurOverride.current) dispatch(UndoActions.checkpoint());
-
-      checkpointOnBlurOverride.current = null;
-      return;
-    }
-
-    if (isValidTuple(displayTuples[tupleIdx], tupleArity))
-      dispatch(UndoActions.checkpoint());
-  };
-
-  const displayTuples = lastTupleIsValid ? [...values, lastTuple] : values;
-  const correctedArity = tupleType === "function" ? tupleArity + 1 : tupleArity;
-
-  if (domain.length === 0 && values.length === 0) {
+  if (isEmpty) {
     return <EmptyPlaceholder message="Nothing to display (domain is empty)" />;
   }
 
@@ -123,7 +41,7 @@ export default function DatabaseView({
     <Table responsive className="table-bordered table-view" size="sm">
       <thead>
         <tr>
-          {Array.from({ length: correctedArity }, (_, idx) => (
+          {Array.from({ length: columnCount }, (_, idx) => (
             <th key={`head-${idx}`}>
               <var>m</var>
               <sub>{idx + 1}</sub>
@@ -133,111 +51,124 @@ export default function DatabaseView({
       </thead>
 
       <tbody>
-        {displayTuples.map((tuple, tupleIdx) => {
-          const isDuplicate = duplicateTuples.has(tuple.join(","));
-          const isLast = tupleIdx === displayTuples.length - 1;
-          const canDelete = !locked && !isLast && tupleType === "predicate";
-
-          return (
-            <tr key={`row-${tupleIdx}`} className={isDuplicate ? "error" : ""}>
-              {Array.from({ length: correctedArity }, (_, idx) => {
-                const isLeftover = leftovers.includes(tuple[idx]);
-                const isReadOnly =
-                  tupleType === "function" && idx !== correctedArity - 1;
-
-                return (
-                  <td key={`col-${idx}`} className={isLeftover ? "error" : ""}>
-                    <div className="table-view-data-indicator">
-                      {isReadOnly ? (
-                        <span>{tuple[idx]}</span>
-                      ) : (
-                        <Form.Control
-                          type="text"
-                          size="sm"
-                          value={tuple[idx] ?? ""}
-                          disabled={locked}
-                          isInvalid={isLeftover || isDuplicate}
-                          onChange={(e) =>
-                            handleTupleChange(tupleIdx, idx, e.target.value)
-                          }
-                          onBlur={() => handleCheckpointOnBlur(tupleIdx)}
-                        />
-                      )}
-                      {(!isLast || tupleType === "function") && (
-                        <PredicateIndicatorTableData
-                          tupleType={tupleType}
-                          tupleName={tupleName}
-                          domainId={tuple[idx]}
-                        />
-                      )}
-                    </div>
-                  </td>
-                );
-              })}
-
-              {canDelete && (
-                <DeleteTupleTableEntry
-                  isDuplicate={isDuplicate}
-                  key={`lock-${tupleIdx}`}
-                  onDelete={() => handleTupleDelete(tupleIdx)}
-                />
-              )}
-            </tr>
-          );
-        })}
+        {Array.from({ length: rowCount }, (_, rowIdx) => (
+          <DatabaseRow
+            key={`row-${rowIdx}`}
+            tupleInfo={tupleInfo}
+            rowIdx={rowIdx}
+            columnCount={columnCount}
+            locked={locked}
+          />
+        ))}
       </tbody>
     </Table>
   );
 }
 
-const findDuplicateTuples = (tuples: string[][]) => {
-  const seen = new Set<string>();
-  const duplicates = new Set<string>();
-
-  for (const tuple of tuples) {
-    if (tuple.includes("")) continue;
-
-    const key = tuple.join(",");
-
-    if (seen.has(key)) duplicates.add(key);
-    else seen.add(key);
-  }
-
-  return duplicates;
-};
-
-const countEmpty = (tuple: string[]) => tuple.filter((t) => t === "").length;
-
-interface PredicateIndicatorTableDataProps {
-  tupleName: string;
-  tupleType: TupleType;
-  domainId: string;
+interface DatabaseRowProps {
+  tupleInfo: TupleInfo;
+  rowIdx: number;
+  columnCount: number;
+  locked: boolean;
 }
 
-function PredicateIndicatorTableData({
-  tupleName,
-  tupleType,
-  domainId,
-}: PredicateIndicatorTableDataProps) {
-  const allUnaryPreds = useAppSelector(selectUnaryPreds);
+function DatabaseRow({
+  tupleInfo,
+  rowIdx,
+  columnCount,
+  locked,
+}: DatabaseRowProps) {
+  const dispatch = useAppDispatch();
 
-  const [predsToDisplay, previewed] = useAppSelector((state) =>
-    selectPredicatesToDisplay(state, tupleName, tupleType, domainId),
+  const { duplicate, isLast } = useShallowAppSelector((state) =>
+    selectDatabaseRow(state, tupleInfo, rowIdx),
   );
 
-  const colorMap = getUnaryPredicateToColorMap(
-    predsToDisplay ?? [],
-    allUnaryPreds ?? [],
-  );
-
-  if (predsToDisplay.length === 0 && previewed.length === 0) return null;
+  const canDelete = !locked && !isLast && tupleInfo.type === "predicate";
 
   return (
-    <RelevantPredicatesIndicator
-      predicateToColorMap={colorMap}
-      previewed={previewed}
-      size="sm"
-    />
+    <tr className={duplicate ? "error" : ""}>
+      {Array.from({ length: columnCount }, (_, colIdx) => (
+        <DatabaseCell
+          key={`col-${colIdx}`}
+          tupleInfo={tupleInfo}
+          rowIdx={rowIdx}
+          colIdx={colIdx}
+          locked={locked}
+        />
+      ))}
+
+      {canDelete && (
+        <DeleteTupleTableEntryButton
+          isDuplicate={duplicate}
+          onDelete={() => dispatch(databaseTupleDeleted({ tupleInfo, rowIdx }))}
+        />
+      )}
+    </tr>
+  );
+}
+
+interface DatabaseCellProps {
+  tupleInfo: TupleInfo;
+  rowIdx: number;
+  colIdx: number;
+  locked: boolean;
+}
+
+function DatabaseCell({
+  tupleInfo,
+  rowIdx,
+  colIdx,
+  locked,
+}: DatabaseCellProps) {
+  const dispatch = useAppDispatch();
+  const checkpointOnBlur = useRef<boolean | null>(null);
+
+  const { value, leftover, invalid, readOnly, showIndicator } =
+    useShallowAppSelector((state) =>
+      selectDatabaseCell(state, tupleInfo, rowIdx, colIdx),
+    );
+
+  const handleChange = (newValue: string) => {
+    checkpointOnBlur.current = dispatch(
+      databaseCellChanged({ tupleInfo, rowIdx, colIdx, value: newValue }),
+    );
+  };
+
+  const handleBlur = () => {
+    dispatch(
+      databaseCellBlurred({
+        tupleInfo,
+        rowIdx,
+        checkpointOnBlur: checkpointOnBlur.current,
+      }),
+    );
+
+    checkpointOnBlur.current = null;
+  };
+
+  return (
+    <td className={leftover ? "error" : ""}>
+      <div className="table-view-data-indicator">
+        {readOnly ? (
+          <span>{value}</span>
+        ) : (
+          <Form.Control
+            type="text"
+            size="sm"
+            value={value}
+            disabled={locked}
+            isInvalid={invalid}
+            onChange={(e) => handleChange(e.target.value)}
+            onBlur={handleBlur}
+          />
+        )}
+
+        {showIndicator && (
+          <DomainPredicateIndicator tupleInfo={tupleInfo} domainId={value} />
+        )}
+      </div>
+    </td>
   );
 }
 
@@ -246,7 +177,7 @@ interface DeleteTupleTableEntryProps {
   onDelete: () => void;
 }
 
-function DeleteTupleTableEntry({
+function DeleteTupleTableEntryButton({
   isDuplicate,
   onDelete,
 }: DeleteTupleTableEntryProps) {

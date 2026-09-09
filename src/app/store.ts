@@ -9,16 +9,19 @@ import formulasReducer from "../features/formulas/formulasSlice";
 import queriesReducer from "../features/queries/queriesSlice.ts";
 import languageReducer from "../features/language/languageSlice";
 import structureReducer from "../features/structure/structureSlice";
-import variablesReducer from "../features/variables/variablesSlice";
-import teacherModeReducer from "../features/teacherMode/teacherModeslice";
-import graphViewReducer from "../features/graphView/graphs/graphSlice";
+import variablesReducer from "../features/variables/variablesSlice.ts";
+import teacherModeReducer from "../features/teacherMode/teacherModeSlice.ts";
+import graphViewReducer from "../features/graphView/graphViewSlice";
 import textViewReducer from "../features/textView/textViewSlice";
 import editorToolbarReducer from "../features/editorToolbar/editorToolbarSlice";
 import databaseViewReducer from "../features/databaseView/databaseViewSlice.ts";
+import caseTreeViewReducer from "../features/caseTreeView/caseTreeViewSlice.ts";
 import errorAlertReducer from "../features/errorAlert/errorAlertSlice.ts";
-import { graphSliceListener } from "../features/graphView/graphs/listeners";
+import predicatePaletteReducer from "../features/predicatePalette/predicatePaletteSlice.ts";
+import { graphViewListener } from "../features/graphView/listeners";
 import { undoable } from "../features/undoHistory/undoHistory.ts";
 import { querySliceListener } from "../features/queries/listeners.ts";
+import { caseTreeListener } from "../features/caseTreeView/listeners.ts";
 
 const rootReducer = {
   formulas: formulasReducer,
@@ -30,16 +33,23 @@ const rootReducer = {
   graphView: graphViewReducer,
   textView: textViewReducer,
   databaseView: databaseViewReducer,
+  caseTreeView: caseTreeViewReducer,
   editorToolbar: editorToolbarReducer,
   errorAlert: errorAlertReducer,
+  predicatePalette: predicatePaletteReducer,
 };
 
-const historyEqualityExcludedReducers: RootReducerEntryName[] = [
+const historyPinnedReducers: RootReducerEntryName[] = [
   "teacherMode",
-  "editorToolbar",
+  "predicatePalette",
 ];
 
-const comparator = (
+const historyEqualityExcludedReducers: RootReducerEntryName[] = [
+  "editorToolbar",
+  ...historyPinnedReducers,
+];
+
+const isHistoryEquivalent = (
   prev: RootStateWithoutHistory,
   next: RootStateWithoutHistory,
 ) => {
@@ -48,18 +58,23 @@ const comparator = (
     .every((key) => prev[key] === next[key]);
 };
 
-const undoReducer = undoable(combineReducers(rootReducer), comparator);
+const undoReducer = undoable(combineReducers(rootReducer), {
+  isEquivalent: isHistoryEquivalent,
+  pinned: historyPinnedReducers,
+});
 
 export const createStore = (extraMiddleware?: Middleware) =>
   configureStore({
     reducer: undoReducer,
     middleware: (getDefaultMiddleware) => {
       const middlewareChain = getDefaultMiddleware().prepend(
-        graphSliceListener.middleware,
+        graphViewListener.middleware,
         querySliceListener.middleware,
+        caseTreeListener.middleware,
       );
 
       if (extraMiddleware) return middlewareChain.prepend(extraMiddleware);
+
       return middlewareChain;
     },
   });

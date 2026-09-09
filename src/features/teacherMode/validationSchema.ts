@@ -1,13 +1,12 @@
 import { z } from "zod";
-import { initialTeacherModeState } from "./teacherModeslice";
 
 export const serializedTeacherModeStateSchema = z.object({
-  teacherMode: z.union([z.boolean(), z.undefined()]),
+  teacherMode: z.union([z.boolean(), z.undefined()]).optional(),
 });
 
 export type SerializedTeacherModeState = z.infer<
   typeof serializedTeacherModeStateSchema
 >;
 
-export const serializedTeacherModeStateDefault: SerializedTeacherModeState =
-  initialTeacherModeState;
+export const serializedTeacherModeStateDefault =
+  (): SerializedTeacherModeState => ({ teacherMode: false });

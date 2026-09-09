@@ -10,26 +10,36 @@ import {
 } from "../language/languageSlice";
 import Structure, { type DomainElement } from "../../model/Structure";
 import type { Symbol } from "../../model/Language";
-import {
-  createSemanticError,
-  createValidationError,
-  type ValidationError,
-} from "../../common/errors";
+import { createSemanticError } from "../../shared/core/errors";
 import {
   prepareWithSourceMeta,
   type LockableValue,
   type Validated,
-} from "../../common/redux";
-import type { RelevantSymbols } from "../import/importThunk";
+} from "../../shared/core/redux";
 import type { SerializedStructureState } from "./validationSchema";
-import { dev } from "../../common/logging";
+import {
+  getTupleLength,
+  type TupleIdentity,
+  type TupleInfo,
+  type TupleType,
+} from "./tupleInfo";
+import {
+  domainTupleKey,
+  domainTupleNoun,
+  formatDomainTuple,
+  type DomainTuple,
+} from "./domainTuple";
+import {
+  capitalize,
+  plural,
+  toBe,
+  withArticle,
+} from "../../shared/core/wordForms";
+import { duplicates } from "../../shared/core/utils";
 
-export type InterpretationType = "predicate" | "function" | "constant";
-export type TupleType = "function" | "predicate";
-
-export type DomainRepresentation = string[];
-export type ConstantInterpretation = string;
-export type TupleInterpretation = string[][];
+export type DomainRepresentation = DomainElement[];
+export type ConstantInterpretation = DomainElement;
+export type TupleInterpretation = DomainTuple[];
 
 export interface StructureState {
   domain: LockableValue<DomainRepresentation>;
@@ -38,18 +48,38 @@ export interface StructureState {
   iF: Record<string, LockableValue<TupleInterpretation>>;
 }
 
-// Helper type
-type InterpretationMap = {
-  constant: StructureState["iC"];
-  predicate: StructureState["iP"];
-  function: StructureState["iF"];
-};
+const tupleStateKey = { predicate: "iP", function: "iF" } as const;
+
+type Interpretations<T> = Record<string, LockableValue<T>>;
+type UpdatePayload<T> = { key: string; value: T };
 
 export const initialStructureState: StructureState = {
   domain: { value: [], locked: false },
   iC: {},
   iP: {},
   iF: {},
+};
+
+const setInterpretation = <T>(
+  interpretations: Interpretations<T>,
+  key: string,
+  value: NoInfer<T>,
+) => {
+  const entry: LockableValue<T> | undefined = interpretations[key];
+
+  if (entry) entry.value = value;
+  else interpretations[key] = { value, locked: false };
+};
+
+const toggleLock = <T>(
+  interpretations: Interpretations<T>,
+  key: string,
+  emptyValue: NoInfer<T>,
+) => {
+  const entry: LockableValue<T> | undefined = interpretations[key];
+
+  if (entry) entry.locked = !entry.locked;
+  else interpretations[key] = { value: emptyValue, locked: true };
 };
 
 export const structureSlice = createSlice({
@@ -63,30 +93,21 @@ export const structureSlice = createSlice({
         merge?: boolean;
       }>,
     ) {
-      const { state: newState, merge = false } = action.payload;
+      const { state: imported, merge = false } = action.payload;
 
-      if (!merge) return newState;
+      if (!merge) return imported;
 
-      const newStateMap = interpretationTypeToStateEntryMap(newState);
-      const stateMap = interpretationTypeToStateEntryMap(state);
+      for (const stateKey of ["iC", "iP", "iF"] as const)
+        Object.assign(state[stateKey], imported[stateKey]);
 
-      for (const intrType in newStateMap) {
-        const newState = newStateMap[intrType as keyof InterpretationMap];
-        const structure = stateMap[intrType as keyof InterpretationMap];
-
-        for (const [name, value] of Object.entries(newState)) {
-          structure[name] = value;
-        }
-      }
-
-      state.domain = newState.domain;
+      state.domain = imported.domain;
     },
 
     updateDomain: {
-      reducer(state, action: PayloadActionSource<string[]>) {
+      reducer(state, action: PayloadActionSource<DomainRepresentation>) {
         state.domain.value = action.payload;
       },
-      prepare: prepareWithSourceMeta<string[]>,
+      prepare: prepareWithSourceMeta<DomainRepresentation>,
     },
 
     lockDomain(state) {
@@ -96,360 +117,351 @@ export const structureSlice = createSlice({
     updateInterpretationConstants: {
       reducer(
         state,
-        action: PayloadActionSource<{
-          key: string;
-          value: ConstantInterpretation;
-        }>,
+        action: PayloadActionSource<UpdatePayload<ConstantInterpretation>>,
       ) {
         const { key, value } = action.payload;
-
-        if (state.iC[key]) state.iC[key].value = value;
-        else state.iC[key] = { value, locked: false };
+        setInterpretation(state.iC, key, value);
       },
-
-      prepare: prepareWithSourceMeta<{
-        key: string;
-        value: ConstantInterpretation;
-      }>,
+      prepare: prepareWithSourceMeta<UpdatePayload<ConstantInterpretation>>,
     },
 
     lockInterpretationConstants(state, action: PayloadAction<{ key: string }>) {
-      const { key } = action.payload;
-
-      if (!state.iC[key]) state.iC[key] = { value: "", locked: false };
-
-      state.iC[key].locked = !state.iC[key].locked;
+      toggleLock(state.iC, action.payload.key, "");
     },
 
     updateInterpretationPredicates: {
       reducer(
         state,
-        action: PayloadActionSource<{
-          key: string;
-          value: TupleInterpretation;
-        }>,
+        action: PayloadActionSource<UpdatePayload<TupleInterpretation>>,
       ) {
         const { key, value } = action.payload;
-
-        if (state.iP[key]) state.iP[key].value = value;
-        else state.iP[key] = { value: value, locked: false };
+        setInterpretation(state.iP, key, value);
       },
-
-      prepare: prepareWithSourceMeta<{
-        key: string;
-        value: TupleInterpretation;
-      }>,
+      prepare: prepareWithSourceMeta<UpdatePayload<TupleInterpretation>>,
     },
 
     lockInterpretationPredicates(
       state,
       action: PayloadAction<{ key: string }>,
     ) {
-      const { key } = action.payload;
-
-      if (!state.iP[key]) state.iP[key] = { value: [], locked: false };
-
-      state.iP[key].locked = !state.iP[key].locked;
+      toggleLock(state.iP, action.payload.key, []);
     },
 
     updateFunctionSymbols: {
       reducer(
         state,
-        action: PayloadActionSource<{
-          key: string;
-          value: TupleInterpretation;
-        }>,
+        action: PayloadActionSource<UpdatePayload<TupleInterpretation>>,
       ) {
         const { key, value } = action.payload;
-
-        if (state.iF[key]) state.iF[key].value = value;
-        else state.iF[key] = { value, locked: false };
+        setInterpretation(state.iF, key, value);
       },
-
-      prepare: prepareWithSourceMeta<{
-        key: string;
-        value: TupleInterpretation;
-      }>,
+      prepare: prepareWithSourceMeta<UpdatePayload<TupleInterpretation>>,
     },
 
     lockFunctionSymbols(state, action: PayloadAction<{ key: string }>) {
-      const { key } = action.payload;
-
-      if (!state.iF[key]) state.iF[key] = { value: [], locked: false };
-
-      state.iF[key].locked = !state.iF[key].locked;
+      toggleLock(state.iF, action.payload.key, []);
     },
   },
 });
 
-const interpretationTypeToStateEntryMap = (
-  state: StructureState,
-): InterpretationMap => ({
-  constant: state.iC,
-  predicate: state.iP,
-  function: state.iF,
-});
-
-const getInterpretationByType = <T extends keyof InterpretationMap>(
-  state: StructureState,
+const getTupleInterpretation = (
+  structure: StructureState,
   name: string,
-  type: T,
-): InterpretationMap[T][string] => {
-  const stateMap = interpretationTypeToStateEntryMap(state);
-  return stateMap[type][name] as InterpretationMap[T][string];
-};
+  type: TupleType,
+): LockableValue<TupleInterpretation> | undefined =>
+  structure[tupleStateKey[type]][name];
 
 export const removeInvalidEntries = ({
-  key,
-  type,
+  tupleInfo,
 }: {
-  key: string;
-  type: TupleType;
+  tupleInfo: TupleInfo;
 }): AppThunk => {
   return (dispatch, getState) => {
-    const state = getState().present.structure;
+    const { name, type } = tupleInfo;
 
-    const entry = getInterpretationByType(state, key, type);
-    const domain = state.domain;
+    const structure = getState().present.structure;
+    const domain = new Set(structure.domain.value);
+    const tuples = getTupleInterpretation(structure, name, type)?.value ?? [];
 
     const seen = new Set<string>();
-    const filtered = entry.value.filter((tuple) => {
-      const key = tuple.join(",");
+    const filtered = tuples.filter((tuple) => {
+      const key = domainTupleKey(tuple);
 
       if (seen.has(key)) return false;
       seen.add(key);
 
-      if (!tuple.every((element) => domain.value.includes(element)))
-        return false;
-
-      return true;
+      return tuple.every((element) => domain.has(element));
     });
 
-    dispatch(interpretationToUpdateActionMap[type]({ key, value: filtered }));
+    dispatch(updateActionByType[type]({ key: name, value: filtered }));
   };
 };
 
 export const selectDomain = (state: RootState) =>
   state.present.structure.domain;
 export const selectDomainLock = (state: RootState) =>
-  state.present.structure.domain.locked;
+  selectDomain(state).locked;
 
-export const selectIc = (state: RootState) => state.present.structure.iC;
-export const selectIcName = (state: RootState, name: string) =>
-  state.present.structure.iC[name];
-export const selectIcLock = (state: RootState, name: string) =>
-  state.present.structure.iC[name]?.locked ?? false;
-
-export const selectIp = (state: RootState) => state.present.structure.iP;
-export const selectIpName = (state: RootState, name: string) =>
-  state.present.structure.iP[name];
-export const selectIpLock = (state: RootState, name: string) =>
-  state.present.structure.iP[name]?.locked ?? false;
-
-export const selectIf = (state: RootState) => state.present.structure.iF;
-export const selectIfName = (state: RootState, name: string) =>
-  state.present.structure.iF[name];
-export const selectIfLock = (state: RootState, name: string) =>
-  state.present.structure.iF[name]?.locked ?? false;
-
-export const selectInterpretationByType = <T extends keyof InterpretationMap>(
+export const selectTupleInterpretation = (
   state: RootState,
   name: string,
-  type: T,
-): InterpretationMap[T][string] => {
-  const stateMap = interpretationTypeToStateEntryMap(state.present.structure);
-  return stateMap[type][name] as InterpretationMap[T][string];
-};
+  type: TupleType,
+) => getTupleInterpretation(state.present.structure, name, type);
+
+export const selectIcEntry = (
+  state: RootState,
+  name: string,
+): LockableValue<ConstantInterpretation> | undefined =>
+  state.present.structure.iC[name];
+export const selectIpEntry = (state: RootState, name: string) =>
+  selectTupleInterpretation(state, name, "predicate");
+export const selectIfEntry = (state: RootState, name: string) =>
+  selectTupleInterpretation(state, name, "function");
+
+export const selectIcLock = (state: RootState, name: string) =>
+  selectIcEntry(state, name)?.locked ?? false;
+
+export const selectTupleLock = (
+  state: RootState,
+  { name, type }: TupleIdentity,
+) => selectTupleInterpretation(state, name, type)?.locked ?? false;
+
+export const selectIpLock = (state: RootState, name: string) =>
+  selectTupleLock(state, { name, type: "predicate" });
+export const selectIfLock = (state: RootState, name: string) =>
+  selectTupleLock(state, { name, type: "function" });
 
 export const selectValidatedDomain = createSelector(
-  [(state: RootState) => state.present.structure.domain],
-  ({ value: domain }): Validated<string[]> => {
-    const result: Validated<DomainRepresentation> = { parsed: domain };
-
+  [(state: RootState) => state.present.structure.domain.value],
+  (domain): Validated<DomainRepresentation> => {
     if (domain.length === 0)
-      result.error = createValidationError("Domain cannot be empty");
-
-    return result;
-  },
-);
-
-export const selectValidatedConstant = createSelector(
-  [selectIcName, selectValidatedDomain],
-  (constant, domain) => {
-    const result: Validated<ConstantInterpretation> = {
-      parsed: constant?.value ?? "",
-    };
-
-    if (!constant || constant.value === "")
-      result.error = createValidationError("Interpretation must be defined");
-    else if (!domain.parsed || !domain.parsed.includes(constant.value))
-      result.error = createValidationError("This element is not in domain.");
-
-    return result;
-  },
-);
-
-export const selectValidatedPredicate = createSelector(
-  [
-    selectIpName,
-    selectValidatedDomain,
-    selectValidatedPredicates,
-    (_: RootState, name: string) => name,
-  ],
-  (interpretation, domain, preds, name) => {
-    if (!preds.parsed) return {};
-    if (!domain.parsed) return {};
-    if (!interpretation) return {};
-
-    const arity = preds.parsed.get(name);
-    const size = arity === 1 ? "element" : `${arity}-tuple`;
-
-    let error: ValidationError | undefined = undefined;
-
-    for (const tuple of interpretation.value) {
-      if (tuple.length !== arity) {
-        const actual_size = tuple.length === 1 ? "element" : `${arity}-tuple`;
-        error = createValidationError(
-          `(${tuple}) is a ${actual_size}, but should be a ${size}, becasue aritiy of ${name} is ${arity}`,
-        );
-        break;
-      }
-
-      for (const element of tuple) {
-        if (domain.parsed.includes(element) === false) {
-          error = createValidationError(`Element ${element} is not in domain.`);
-          break;
-        }
-      }
-
-      for (const tuple2 of interpretation.value) {
-        if (
-          JSON.stringify(tuple) === JSON.stringify(tuple2) &&
-          tuple != tuple2
-        ) {
-          error = createValidationError(
-            `${size} (${tuple}) is already in predicate.`,
-          );
-
-          break;
-        }
-      }
-    }
-
-    return { parsed: interpretation.value ?? [], error };
-  },
-);
-
-function getAllPossibleCombinations(arr: string[], size: number): string[][] {
-  const result: string[][] = [];
-
-  const generateCombinations = (current: string[]) => {
-    if (current.length === size) {
-      result.push([...current]);
-      return;
-    }
-
-    for (let i = 0; i < arr.length; i++) {
-      current.push(arr[i]);
-      generateCombinations(current);
-      current.pop();
-    }
-  };
-
-  generateCombinations([]);
-  return result;
-}
-
-export const selectValidatedFunction = createSelector(
-  [
-    selectIfName,
-    selectValidatedDomain,
-    selectValidatedFunctions,
-    (_: RootState, name: string) => name,
-  ],
-  (interpretation, domain, functions, name) => {
-    if (functions.parsed.size === 0) return {};
-    if (domain.parsed.length === 0) return {};
-
-    const arity = functions.parsed.get(name) ?? 0;
-    let all = getAllPossibleCombinations(domain.parsed, arity);
-    let examples = all.slice(0, 3).map((element) => `(${element.join(",")})`);
-
-    if (!interpretation || interpretation.value.length === 0) {
-      const examplePrints = all.length <= 3 ? `${examples}` : `${examples}...`;
-      const actualSize = all[0].length === 1 ? "elements" : `${arity}-tuples`;
-
       return {
+        parsed: domain,
+        error: createSemanticError("Domain cannot be empty."),
+      };
+
+    const dups = duplicates(domain);
+
+    if (dups.length > 0) {
+      return {
+        parsed: domain,
         error: createSemanticError(
-          `Function is not fully defined, for example these ${actualSize} do not have assigned value: ${examplePrints}`,
+          `${plural(dups.length, "Element")} ${dups.join(", ")} ${toBe(dups.length)} already in domain.`,
         ),
       };
     }
 
-    const size = arity === 1 ? "element" : `${arity + 1}-tuple`;
-
-    let error: ValidationError | undefined = undefined;
-
-    interpretation.value.forEach((tuple) => {
-      if (arity !== undefined && tuple.length != arity + 1) {
-        const actual_size = tuple.length === 1 ? "element" : `${arity}-tuple`;
-        error = createValidationError(
-          `(${tuple}) is a ${actual_size}, but should be a ${size}, becasue aritiy of ${name} is ${arity}. Format is: (n-elements,mapped_element)`,
-        );
-        return;
-      }
-
-      tuple.forEach((element) => {
-        if (!domain.parsed?.includes(element)) {
-          error = createValidationError(`Element ${element} is not in domain.`);
-          return;
-        }
-      });
-
-      if (error) return error;
-
-      interpretation.value.forEach((tuple2) => {
-        if (
-          JSON.stringify(tuple.slice(0, -1)) ===
-            JSON.stringify(tuple2.slice(0, -1)) &&
-          tuple != tuple2
-        ) {
-          tuple = tuple.slice(0, -1);
-          const actual_size = tuple.length === 1 ? "element" : `${arity}-tuple`;
-          error = createValidationError(
-            `${actual_size} (${tuple}) has already defined value.`,
-          );
-        }
-      });
-
-      if (
-        all.filter(
-          (i) => JSON.stringify(i) === JSON.stringify(tuple.slice(0, -1)),
-        ).length === 1
-      ) {
-        all = all.filter(
-          (i) => JSON.stringify(i) !== JSON.stringify(tuple.slice(0, -1)),
-        );
-        examples = all.slice(0, 3).map((element) => `(${element.join(",")})`);
-      }
-    });
-
-    if (!error && all.length !== 0) {
-      const examplePrints = all.length <= 3 ? `${examples}` : `${examples}...`;
-      const actual_size = all[0].length === 1 ? "elements" : `${arity}-tuples`;
-      const semanticError = createSemanticError(
-        `Function is not fully defined, for example these ${actual_size} do not have assigned value: ${examplePrints}`,
-      );
-      return { parsed: interpretation?.value ?? [], error: semanticError };
-    }
-
-    return { parsed: interpretation?.value ?? [], error };
+    return { parsed: domain };
   },
 );
 
-// This is a weird selector, but it's not that bad since all the selectors are memoized.
-// Making this better would require creating another set of selectors that only take portion of the RootState.
-// That wouldn't make for much of a performance improvement anyway.
+export const selectValidatedConstant = createSelector(
+  [selectIcEntry, selectValidatedDomain],
+  (constant, domain): Validated<ConstantInterpretation> => {
+    const parsed = constant?.value ?? "";
+
+    if (parsed === "")
+      return {
+        parsed,
+        error: createSemanticError("Interpretation must be defined."),
+      };
+
+    if (!domain.parsed.includes(parsed))
+      return {
+        parsed,
+        error: createSemanticError("This element is not in domain."),
+      };
+
+    return { parsed };
+  },
+);
+
+const findPredicateError = (
+  tuples: TupleInterpretation,
+  domain: ReadonlySet<string>,
+  name: string,
+  arity: number,
+) => {
+  const seen = new Set<string>();
+
+  for (const tuple of tuples) {
+    if (tuple.length !== arity)
+      return createSemanticError(
+        `${formatDomainTuple(tuple)} is ${withArticle(domainTupleNoun(tuple.length))}, but should be ${withArticle(domainTupleNoun(arity))}, because arity of ${name} is ${arity}.`,
+      );
+
+    const unknownElement = tuple.find((element) => !domain.has(element));
+    if (unknownElement !== undefined)
+      return createSemanticError(
+        `Element ${unknownElement} is not in domain.`,
+        true,
+      );
+
+    const key = domainTupleKey(tuple);
+    if (seen.has(key))
+      return createSemanticError(
+        `${capitalize(domainTupleNoun(arity))} ${formatDomainTuple(tuple)} is already in predicate.`,
+        true,
+      );
+
+    seen.add(key);
+  }
+};
+
+export const selectValidatedPredicate = createSelector(
+  [
+    selectIpEntry,
+    selectValidatedDomain,
+    selectValidatedPredicates,
+    (_: RootState, name: string) => name,
+  ],
+  (
+    interpretation,
+    domain,
+    predicates,
+    name,
+  ): Validated<TupleInterpretation> => {
+    const parsed = interpretation?.value ?? [];
+
+    const arity = predicates.parsed.get(name);
+    if (arity === undefined) return { parsed };
+
+    return {
+      parsed,
+      error: findPredicateError(parsed, new Set(domain.parsed), name, arity),
+    };
+  },
+);
+
+const findFunctionError = (
+  tuples: TupleInterpretation,
+  domain: ReadonlySet<string>,
+  name: string,
+  arity: number,
+) => {
+  const expectedLength = getTupleLength("function", arity);
+  const definedArguments = new Set<string>();
+
+  for (const tuple of tuples) {
+    if (tuple.length !== expectedLength)
+      return createSemanticError(
+        `${formatDomainTuple(tuple)} is ${withArticle(domainTupleNoun(tuple.length))}, but should be ${withArticle(domainTupleNoun(expectedLength))}, because arity of ${name} is ${arity}. Format is: (n-elements,mapped_element).`,
+      );
+
+    const unknownElement = tuple.find((element) => !domain.has(element));
+    if (unknownElement !== undefined)
+      return createSemanticError(
+        `Element ${unknownElement} is not in domain.`,
+        true,
+      );
+
+    const args = tuple.slice(0, -1);
+    const key = domainTupleKey(args);
+    if (definedArguments.has(key))
+      return createSemanticError(
+        `${capitalize(domainTupleNoun(arity))} ${formatDomainTuple(args)} has already defined value.`,
+        true,
+      );
+
+    definedArguments.add(key);
+  }
+};
+
+const findUndefinedArguments = (
+  tuples: TupleInterpretation,
+  domain: DomainRepresentation,
+  arity: number,
+  limit: number,
+) => {
+  const defined = new Set(
+    tuples.map((tuple) => domainTupleKey(tuple.slice(0, -1))),
+  );
+  const undefinedArguments: string[][] = [];
+
+  const visitArguments = (args: string[]) => {
+    if (undefinedArguments.length >= limit) return;
+
+    if (args.length === arity) {
+      if (!defined.has(domainTupleKey(args)))
+        undefinedArguments.push([...args]);
+      return;
+    }
+
+    for (const element of domain) {
+      args.push(element);
+      visitArguments(args);
+      args.pop();
+    }
+  };
+
+  visitArguments([]);
+  return undefinedArguments;
+};
+
+const MAX_EXAMPLES = 3;
+
+export const selectValidatedFunction = createSelector(
+  [
+    selectIfEntry,
+    selectValidatedDomain,
+    selectValidatedFunctions,
+    (_: RootState, name: string) => name,
+  ],
+  (interpretation, domain, functions, name): Validated<TupleInterpretation> => {
+    const parsed = interpretation?.value ?? [];
+
+    const arity = functions.parsed.get(name);
+    if (arity === undefined || domain.parsed.length === 0) return { parsed };
+
+    const error = findFunctionError(
+      parsed,
+      new Set(domain.parsed),
+      name,
+      arity,
+    );
+    if (error) return { parsed, error };
+
+    const undefinedArguments = findUndefinedArguments(
+      parsed,
+      domain.parsed,
+      arity,
+      MAX_EXAMPLES + 1,
+    );
+    if (undefinedArguments.length === 0) return { parsed };
+
+    const examples = undefinedArguments
+      .slice(0, MAX_EXAMPLES)
+      .map(formatDomainTuple)
+      .join(",");
+    const ellipsis = undefinedArguments.length > MAX_EXAMPLES ? "..." : ".";
+
+    return {
+      parsed,
+      error: createSemanticError(
+        `Function is not fully defined, for example these ${domainTupleNoun(arity)}s do not have assigned value: ${examples}${ellipsis}`,
+      ),
+    };
+  },
+);
+
+export const selectTupleValidation = (
+  state: RootState,
+  name: string,
+  type: TupleType,
+) => validationSelectorByType[type](state, name).error;
+
+const findFirstError = <E>(
+  names: Iterable<string>,
+  validate: (name: string) => { error?: E },
+) => {
+  for (const name of names) {
+    const { error } = validate(name);
+    if (error) return error;
+  }
+};
+
+// Validating a single symbol needs the whole state, which makes this selector recompute on every
+// change. That is not that bad, since all the per-symbol selectors it calls are memoized.
 export const selectStructureErrors = createSelector(
   [
     (state: RootState) => state,
@@ -458,48 +470,77 @@ export const selectStructureErrors = createSelector(
     selectValidatedFunctions,
     selectValidatedDomain,
   ],
-  (state, constants, predicates, functions, domain) => {
-    if (domain.error !== undefined) return domain.error;
-
-    for (const name of constants.parsed ?? []) {
-      const validated = selectValidatedConstant(state, name);
-      if (validated.error !== undefined) {
-        return validated.error;
-      }
-    }
-
-    for (const [name] of predicates.parsed ?? []) {
-      const validated = selectValidatedPredicate(state, name);
-      if (validated.error !== undefined) {
-        return validated.error;
-      }
-    }
-
-    for (const [name] of functions.parsed ?? []) {
-      const validated = selectValidatedFunction(state, name);
-      if (validated.error !== undefined) {
-        return validated.error;
-      }
-    }
-
-    return undefined;
-  },
+  (state, constants, predicates, functions, domain) =>
+    domain.error ??
+    findFirstError(constants.parsed, (name) =>
+      selectValidatedConstant(state, name),
+    ) ??
+    findFirstError(predicates.parsed.keys(), (name) =>
+      selectValidatedPredicate(state, name),
+    ) ??
+    findFirstError(functions.parsed.keys(), (name) =>
+      selectValidatedFunction(state, name),
+    ),
 );
 
 export const selectHasWrongArityError = createSelector(
   [
-    selectInterpretationByType,
+    selectTupleInterpretation,
     (state: RootState, name: string, type: TupleType) =>
-      interpretationToSelectorMap[type](state).parsed.get(name),
+      validatedSymbolsByType[type](state).parsed.get(name),
     (_: RootState, __: string, type: TupleType) => type,
   ],
   (interpretation, arity, type) => {
     if (arity === undefined || !interpretation) return false;
 
-    return (interpretation.value as TupleInterpretation).some(
-      (tuple) => tuple.length !== (type === "function" ? arity + 1 : arity),
+    return interpretation.value.some(
+      (tuple) => tuple.length !== getTupleLength(type, arity),
     );
   },
+);
+
+export const selectRelevantConstants = createSelector(
+  [
+    (state: RootState) => state.present.language.constants.value,
+    (state: RootState) => state.present.structure.iC,
+    (_: RootState, domainElement: string) => domainElement,
+  ],
+  (constants, iC, domainElement) =>
+    constants.filter((c) => iC[c]?.value === domainElement),
+);
+
+const selectUnaryPredsContainingElement = createSelector(
+  [(state: RootState) => state.present.structure.iP],
+  (predicates) => {
+    const byElement = new Map<string, string[]>();
+
+    for (const [predicate, interpretation] of Object.entries(predicates)) {
+      const elements = new Set(
+        (interpretation?.value ?? [])
+          .filter((tuple) => tuple.length === 1)
+          .map(([element]) => element),
+      );
+
+      for (const element of elements) {
+        const relevant = byElement.get(element);
+
+        if (relevant) relevant.push(predicate);
+        else byElement.set(element, [predicate]);
+      }
+    }
+
+    return byElement;
+  },
+);
+
+const noRelevantPreds: string[] = [];
+export const selectRelevantUnaryPreds = createSelector(
+  [
+    selectUnaryPredsContainingElement,
+    (_: RootState, domainElement: string) => domainElement,
+  ],
+  (predsByElement, domainElement) =>
+    predsByElement.get(domainElement) ?? noRelevantPreds,
 );
 
 export const selectStructure = createSelector(
@@ -510,75 +551,38 @@ export const selectStructure = createSelector(
     selectLanguage,
     selectValidatedDomain,
   ],
-  (constants, predicates, functions, language, domain) => {
-    dev.time("selectStructure duration");
-    const usedConstants = language.constants;
-    const usedPredicates = language.predicates;
-    const usedFunctions = language.functions;
+  (constants, predicates, functions, language, rawDomain) => {
+    const domain = new Set(rawDomain.parsed);
 
-    const iC = new Map<Symbol, DomainElement>();
-    const iP = new Map<Symbol, Set<DomainElement[]>>();
-    const iF = new Map<Symbol, Map<DomainElement[], DomainElement>>();
-
-    usedConstants.forEach((name) => {
-      const value = constants[name]?.value ?? "";
-      iC.set(name, value);
-    });
-
-    usedPredicates.forEach((_, name) => {
-      const value = predicates[name]?.value ?? [[]];
-      iP.set(name, new Set(value));
-    });
-
-    usedFunctions.forEach((_, name) => {
-      const valuation = functions[name]?.value ?? [[]];
-      const map = new Map<DomainElement[], DomainElement>();
-      valuation.forEach((value) => {
-        map.set(value.slice(0, -1), value.slice(-1)[0]);
-      });
-      iF.set(name, map);
-    });
-
-    dev.timeEnd("selectStructure duration");
-    return new Structure(
-      language,
-      new Set(domain.error ? [] : domain.parsed),
-      iC,
-      iP,
-      iF,
+    const iC = new Map<Symbol, DomainElement>(
+      [...language.constants].map((name) => [
+        name,
+        constants[name]?.value ?? "",
+      ]),
     );
+
+    const iP = new Map<Symbol, Set<DomainElement[]>>(
+      [...language.predicates.keys()].map((name) => [
+        name,
+        new Set(predicates[name]?.value ?? []),
+      ]),
+    );
+
+    const iF = new Map<Symbol, Map<DomainElement[], DomainElement>>(
+      [...language.functions.keys()].map((name) => [
+        name,
+        new Map(
+          (functions[name]?.value ?? []).map((tuple) => [
+            tuple.slice(0, -1),
+            tuple.at(-1) ?? "",
+          ]),
+        ),
+      ]),
+    );
+
+    return new Structure(language, domain, iC, iP, iF);
   },
 );
-
-export const getRelevantStructureState = (
-  structure: StructureState,
-  relevantSymbols: RelevantSymbols,
-): StructureState => {
-  const relevantConstants = Object.fromEntries(
-    Object.entries(structure.iC).filter(
-      ([key]) => relevantSymbols[key]?.type === "constant",
-    ),
-  );
-
-  const relevantPredicateInterpretations = Object.fromEntries(
-    Object.entries(structure.iP).filter(
-      ([key]) => relevantSymbols[key]?.type === "predicate",
-    ),
-  );
-
-  const relevantFunctionInterpretation = Object.fromEntries(
-    Object.entries(structure.iF).filter(
-      ([key]) => relevantSymbols[key]?.type === "function",
-    ),
-  );
-
-  return {
-    ...structure,
-    iC: relevantConstants,
-    iP: relevantPredicateInterpretations,
-    iF: relevantFunctionInterpretation,
-  };
-};
 
 export const {
   updateDomain,
@@ -592,16 +596,19 @@ export const {
   lockFunctionSymbols,
 } = structureSlice.actions;
 
-export default structureSlice.reducer;
-
-const interpretationToUpdateActionMap = {
-  constants: updateInterpretationConstants,
+const updateActionByType = {
   predicate: updateInterpretationPredicates,
   function: updateFunctionSymbols,
 } as const;
 
-const interpretationToSelectorMap = {
-  constants: selectValidatedConstants,
+const validationSelectorByType = {
+  predicate: selectValidatedPredicate,
+  function: selectValidatedFunction,
+} as const;
+
+const validatedSymbolsByType = {
   predicate: selectValidatedPredicates,
   function: selectValidatedFunctions,
 } as const;
+
+export default structureSlice.reducer;

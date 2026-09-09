@@ -1,0 +1,130 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+import App from "./App";
+import { createStore, type AppStore, type RootState } from "../app/store";
+import { Provider } from "react-redux";
+import {
+  getAppStateToExport,
+  importAppState,
+} from "../features/import/importExportUtils.ts";
+import { type CellContext, LogicContext } from "../providers/logicContext";
+import { useEffect, useState } from "react";
+import { parseSerializedAppStateWithDefaults } from "../features/import/validationSchema";
+import {
+  generateInstanceId,
+  InstanceIdContext,
+} from "../providers/instanceIdContext";
+import {
+  errorAlertSlice,
+  setError,
+} from "../features/errorAlert/errorAlertSlice";
+import { isAnyOf, type Middleware } from "@reduxjs/toolkit";
+import { editorToolbarSlice } from "../features/editorToolbar/editorToolbarSlice";
+import { UndoActions } from "../features/undoHistory/undoHistory";
+import { formulasSlice } from "../features/formulas/formulasSlice";
+import { queriesSlice } from "../features/queries/queriesSlice";
+import { graphViewSlice } from "../features/graphView/graphViewSlice.ts";
+import { predicatePaletteSlice } from "../features/predicatePalette/predicatePaletteSlice.ts";
+
+interface PrepareResult {
+  instance: any;
+  getState: (instance: any) => any;
+}
+
+const actionsToIgnore = [
+  editorToolbarSlice.actions.predicateHovered,
+  editorToolbarSlice.actions.unaryFilterDomainHovered,
+  editorToolbarSlice.actions.nodeToggled,
+  editorToolbarSlice.actions.allNodesSelected,
+  editorToolbarSlice.actions.unaryFilterDomainToggled,
+  editorToolbarSlice.actions.unaryPredicateToggled,
+  editorToolbarSlice.actions.editorOpened,
+  graphViewSlice.actions.graphDidInitialLayout,
+  graphViewSlice.actions.onNodesChanged,
+  errorAlertSlice.actions.clearError,
+  errorAlertSlice.actions.setError,
+  formulasSlice.actions.gameGoBack,
+  queriesSlice.actions.allQueriesStale,
+  queriesSlice.actions.updateQueryStaleness,
+  ...Object.values(predicatePaletteSlice.actions),
+  UndoActions.checkpoint,
+];
+
+function isIgnoredAction(action: unknown) {
+  return typeof action === "function" || isAnyOf(...actionsToIgnore)(action);
+}
+
+function prepare(initialState?: any): PrepareResult {
+  const storeListener: Middleware<object, RootState> =
+    () => (next) => (action) => {
+      const result = next(action);
+
+      if (instance?.handleStoreChange && !isIgnoredAction(action))
+        instance.handleStoreChange();
+
+      return result;
+    };
+
+  const store = createStore(storeListener);
+  const instance: {
+    store: AppStore;
+    handleStoreChange: (() => void) | undefined;
+  } = { store, handleStoreChange: undefined };
+
+  const getState = (instance: any) => {
+    const storeState = instance.store.getState();
+    return getAppStateToExport(storeState);
+  };
+
+  if (initialState !== null) {
+    const result = parseSerializedAppStateWithDefaults(initialState);
+
+    if (result.errors.length !== 0) {
+      console.error(result.errors);
+      store.dispatch(setError("workbookImportFailed"));
+    }
+
+    store.dispatch(importAppState(result.data));
+  }
+
+  return { instance, getState };
+}
+
+interface AppComponentProps {
+  instance: any;
+  onStateChange: () => void;
+  isEdited: boolean;
+  context?: CellContext;
+}
+
+export function AppComponent({
+  instance,
+  onStateChange,
+  isEdited,
+  context,
+}: AppComponentProps): JSX.Element {
+  const appstore = instance.store;
+
+  // Since some components must have a unique id across the whole document
+  // we need a way do distinguish between identical instances.
+  // (e.g copied instances inside workbook)
+  const [instanceId] = useState(() => generateInstanceId());
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/immutability
+    instance.handleStoreChange = onStateChange;
+    return () => (instance.handleStoreChange = undefined);
+  }, [instance, onStateChange]);
+
+  return (
+    <Provider store={appstore}>
+      <InstanceIdContext.Provider value={instanceId}>
+        <LogicContext.Provider value={context}>
+          <App viewOnlyMode={!isEdited} />
+        </LogicContext.Provider>
+      </InstanceIdContext.Provider>
+    </Provider>
+  );
+}
+
+export default { prepare, AppComponent };

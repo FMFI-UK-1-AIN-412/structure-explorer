@@ -1,6 +1,8 @@
 import Structure, { type DomainElement, type Valuation } from "../Structure";
 import Formula, { type SignedFormula, SignedFormulaType } from "./Formula";
 import type { Symbol } from "../Language";
+import { dev } from "../../shared/core/logging";
+import { latex } from "../../shared/core/utils";
 
 abstract class QuantifiedFormula extends Formula {
   constructor(
@@ -27,9 +29,7 @@ abstract class QuantifiedFormula extends Formula {
   }
 
   toTex(): string {
-    return `${this.connectiveTex} ${
-      this.variableName
-    } ${this.subFormula.toTex()}`;
+    return `\\mathop{${this.connectiveTex} ${latex().escape(this.variableName).get()}} ${this.subFormula.toTex()}`;
   }
 
   getVariableName(): string {
@@ -40,25 +40,32 @@ abstract class QuantifiedFormula extends Formula {
     sign: boolean,
     structure: Structure,
     e: Valuation,
-  ): DomainElement[] {
-    const signedFormula = this.getSignedSubFormulas(sign)[0];
+    stableDomain?: string[],
+  ): [DomainElement, number][] {
+    return dev.timed("winningElements duration", () => {
+      const domain = stableDomain ?? [...structure.domain];
 
-    const cpy = new Map(e);
+      const signedFormula = this.getSignedSubFormulas(sign)[0];
 
-    let winning: DomainElement[] = [];
+      const cpy = new Map(e);
 
-    for (const element of structure.domain) {
-      cpy.set(this.variableName, element);
-      if (signedFormula.formula.eval(structure, cpy) !== signedFormula.sign) {
-        winning.push(element);
+      let winning: [DomainElement, number][] = [];
+
+      let idx = 0;
+      for (const element of domain) {
+        cpy.set(this.variableName, element);
+        if (signedFormula.formula.eval(structure, cpy) !== signedFormula.sign) {
+          winning.push([element, idx]);
+        }
+        idx++;
       }
-    }
 
-    if (winning.length === 0) {
-      winning = Array.from(structure.domain);
-    }
+      if (winning.length === 0) {
+        winning = domain.map((e, idx) => [e, idx]);
+      }
 
-    return winning;
+      return winning;
+    });
   }
 
   getVariables(): Set<Symbol> {

@@ -13,31 +13,8 @@
   transform: none;
 }
 
-.drawer-editor-modal-content {
-  height: 100%;
-  width: 100%;
-
-  background-color: var(--bs-white);
-  border: none;
-  box-shadow: var(--bs-box-shadow-sm);
-  background-clip: unset;
-}
-
 .drawer-editor-container-body {
   height: 100%;
-}
-
-.structure-explorer.modal.fade .drawer-editor-modal-dialog {
-  transform: none;
-  transform: scale(0.95);
-
-  transition: all 0.2s ease-out;
-  opacity: 0;
-}
-
-.structure-explorer.modal.show .drawer-editor-modal-dialog {
-  transform: scale(1);
-  opacity: 1;
 }
 
 .drawer-editor-divider-container-body {
@@ -71,15 +48,6 @@
   padding: 0.5rem;
   border: 1px solid var(--bs-border-color);
   border-radius: var(--bs-border-radius);
-}
-
-.drawer-editor-header .btn-close {
-  height: 100%;
-  flex: 1 0 0;
-  width: 38px;
-  --bs-btn-close-color: var(--bs-body-color);
-  --bs-btn-close-opacity: 1;
-  padding: 0;
 }
 
 .drawer-editor-header-control-group {
@@ -171,6 +139,16 @@
   padding-inline: 0.5rem;
 }
 
+.drawer-editor-breadcrumbs {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+
+  flex-shrink: 1;
+  flex-grow: 1;
+  min-width: 0;
+}
+
 .drawer-editor-title-primary {
   max-height: 1.5rem;
   flex-shrink: 0;
@@ -178,6 +156,8 @@
 
 .drawer-editor-title-divider {
   flex-shrink: 0;
+  width: 1em;
+  height: 1em;
 }
 
 .drawer-editor-title-secondary {
@@ -191,7 +171,9 @@
   background-color: unset;
   border: unset;
   border-radius: unset;
+  font-size: 1rem;
   padding: 0;
+  padding-right: 1rem;
 }
 
 .editor-controls-buttons-group button:first-of-type {
@@ -201,6 +183,19 @@
 
 .editor-controls-buttons-group:has(+ button) button:last-of-type {
   border-radius: 0;
+}
+
+.drawer-editor-lock-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  line-height: 1;
+  font-weight: 500;
+  color: color-mix(in srgb, var(--bs-danger) 65%, transparent 35%);
+  color: rgba(33, 37, 41, 0.5);
+  color: var(--bs-tertiary-color);
+  color: color-mix(in srgb, var(--bs-tertiary-color) 85%, transparent 15%);
 }
 
 /* Needed when overlapping with error border of .drawer-editor-error-container */

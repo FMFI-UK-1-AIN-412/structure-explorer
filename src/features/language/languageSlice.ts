@@ -3,12 +3,12 @@ import type { PayloadAction } from "@reduxjs/toolkit";
 import type { RootState } from "../../app/store";
 import Language from "../../model/Language";
 import { type SymbolWithArity } from "@fmfi-uk-1-ain-412/js-fol-parser";
-import { createValidationError } from "../../common/errors";
+import { createSemanticError } from "../../shared/core/errors";
 import {
   prepareWithSourceMeta,
   type LockableValue,
   type Validated,
-} from "../../common/redux";
+} from "../../shared/core/redux";
 import type { SerializedLanguageState } from "./validationSchema";
 
 export type ConstantsRepresentation = string[];
@@ -58,10 +58,7 @@ export const languageSlice = createSlice({
 
     updatePredicates: {
       reducer(state, action: PayloadActionSource<SymbolWithArity[]>) {
-        state.predicates.value = action.payload.map(({ name, arity }) => [
-          name,
-          arity,
-        ]);
+        state.predicates.value = toAritySymbols(action.payload);
       },
       prepare: prepareWithSourceMeta<SymbolWithArity[]>,
     },
@@ -72,10 +69,7 @@ export const languageSlice = createSlice({
 
     updateFunctions: {
       reducer(state, action: PayloadActionSource<SymbolWithArity[]>) {
-        state.functions.value = action.payload.map(({ name, arity }) => [
-          name,
-          arity,
-        ]);
+        state.functions.value = toAritySymbols(action.payload);
       },
       prepare: prepareWithSourceMeta<SymbolWithArity[]>,
     },
@@ -98,14 +92,14 @@ export const selectFunctionsLock = (state: RootState) =>
   state.present.language.functions.locked;
 
 export const selectValidatedConstants = createSelector(
-  [(state: RootState) => state.present.language.constants],
-  ({ value: constants }) => {
+  [(state: RootState) => state.present.language.constants.value],
+  (constants) => {
     const result: Validated<Set<string>> = { parsed: new Set(constants) };
 
-    for (const element of constants) {
-      if (constants.filter((element2) => element === element2).length > 1) {
-        result.error = createValidationError(
-          `Constant ${element} is already defined`,
+    for (const constant of constants) {
+      if (constants.filter((constant2) => constant === constant2).length > 1) {
+        result.error = createSemanticError(
+          `Constant ${constant} is already defined.`,
         );
       }
     }
@@ -115,16 +109,16 @@ export const selectValidatedConstants = createSelector(
 );
 
 export const selectValidatedPredicates = createSelector(
-  [(state: RootState) => state.present.language.predicates],
-  ({ value: predicates }): Validated<Map<string, number>> => {
+  [(state: RootState) => state.present.language.predicates.value],
+  (predicates): Validated<Map<string, number>> => {
     const result: Validated<Map<string, number>> = {
       parsed: new Map(predicates),
     };
 
     for (const [name] of predicates) {
       if (predicates.filter(([name2]) => name === name2).length > 1) {
-        result.error = createValidationError(
-          `Predicate ${name} is already defined`,
+        result.error = createSemanticError(
+          `Predicate ${name} is already defined.`,
         );
       }
     }
@@ -134,15 +128,15 @@ export const selectValidatedPredicates = createSelector(
 );
 
 export const selectValidatedFunctions = createSelector(
-  [(state: RootState) => state.present.language.functions],
-  ({ value: functions }): Validated<Map<string, number>> => {
+  [(state: RootState) => state.present.language.functions.value],
+  (functions): Validated<Map<string, number>> => {
     const result: Validated<Map<string, number>> = {
       parsed: new Map(functions),
     };
 
     for (const [name] of functions) {
       if (functions.filter(([name2]) => name === name2).length > 1) {
-        result.error = createValidationError(
+        result.error = createSemanticError(
           `Function ${name} is already defined`,
         );
       }
@@ -170,17 +164,17 @@ export const selectSymbolsClash = createSelector(
 
     constants.forEach((element) => {
       if (predicates.has(element)) {
-        err = `Constant ${element} is also defined in predicates`;
+        err = `Constant ${element} is also defined in predicates.`;
       }
 
       if (functions.has(element)) {
-        err = `Constant ${element} is also defined in functions`;
+        err = `Constant ${element} is also defined in functions.`;
       }
     });
 
     predicates.forEach((element) => {
       if (functions.has(element)) {
-        err = `Predicate ${element} is also defined in functions`;
+        err = `Predicate ${element} is also defined in functions.`;
       }
     });
 
@@ -188,7 +182,7 @@ export const selectSymbolsClash = createSelector(
   },
 );
 
-export const selectLanguageErrors = createSelector(
+export const selectFirstLanguageError = createSelector(
   [
     selectValidatedConstants,
     selectValidatedPredicates,
@@ -196,7 +190,7 @@ export const selectLanguageErrors = createSelector(
     selectSymbolsClash,
   ],
   (constants, predicates, functions, clash) => {
-    if (clash) return createValidationError(clash);
+    if (clash) return createSemanticError(clash);
 
     const errors = [constants, predicates, functions].map(({ error }) => error);
     return errors.find((error) => error !== undefined);
@@ -216,6 +210,27 @@ export const selectLanguage = createSelector(
       functions.parsed ?? new Map(),
     );
   },
+);
+
+export const toAritySymbols = (
+  symbols: SymbolWithArity[],
+): AritySymbolsRepresentation =>
+  symbols.map(({ name, arity }) => [name, arity]);
+
+export const getSymbolNames = (symbols: AritySymbolsRepresentation): string[] =>
+  symbols.map(([name]) => name);
+
+export const getUnarySymbols = (
+  symbols: AritySymbolsRepresentation,
+): AritySymbolsRepresentation => symbols.filter(([, arity]) => arity === 1);
+
+export const getUnarySymbolNames = (
+  symbols: AritySymbolsRepresentation,
+): string[] => getSymbolNames(getUnarySymbols(symbols));
+
+export const selectUnaryPreds = createSelector(
+  [(state: RootState) => state.present.language.predicates.value],
+  getUnarySymbols,
 );
 
 export const {

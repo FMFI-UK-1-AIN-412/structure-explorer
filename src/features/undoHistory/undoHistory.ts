@@ -25,18 +25,38 @@ export const UndoActions = {
 const reduxUndoOptions: UndoableOptions = {
   debug: import.meta.env.DEV,
   filter: includeAction(UndoActionTypes.CHECKPOINT),
-  limit: 20,
+  limit: 30,
 };
+
+const timeTravelActionTypes: string[] = [
+  UndoActionTypes.UNDO,
+  UndoActionTypes.REDO,
+  UndoActionTypes.JUMP,
+  UndoActionTypes.JUMP_TO_PAST,
+  UndoActionTypes.JUMP_TO_FUTURE,
+];
 
 export type StateComparator<State> = (
   previous: State,
   present: State,
 ) => boolean;
 
-export const undoable = <State, A extends Action = UnknownAction>(
+export interface UndoHistoryConfig<State> {
+  isEquivalent: StateComparator<State>;
+  pinned: (keyof State)[];
+}
+
+export const undoable = <
+  State extends object,
+  A extends Action = UnknownAction,
+>(
   reducer: Reducer<State, A>,
-  comparator: StateComparator<State>,
-) => withStateComparator(reduxUndo(reducer, reduxUndoOptions), comparator);
+  { isEquivalent, pinned }: UndoHistoryConfig<State>,
+) =>
+  withPinnedSlices(
+    withStateComparator(reduxUndo(reducer, reduxUndoOptions), isEquivalent),
+    pinned,
+  );
 
 const withStateComparator =
   <State, A extends Action = UnknownAction>(
@@ -56,3 +76,38 @@ const withStateComparator =
 
     return reducer(state, action);
   };
+
+const withPinnedSlices =
+  <State extends object, A extends Action = UnknownAction>(
+    reducer: Reducer<StateWithHistory<State>, A>,
+    pinned: (keyof State)[],
+  ): Reducer<StateWithHistory<State>, A> =>
+  (state, action) => {
+    const nextState = reducer(state, action);
+
+    if (state === undefined || !timeTravelActionTypes.includes(action.type))
+      return nextState;
+
+    const present = restorePinnedSlices(
+      nextState.present,
+      state.present,
+      pinned,
+    );
+
+    if (present === nextState.present) return nextState;
+
+    return { ...nextState, present, _latestUnfiltered: present };
+  };
+
+const restorePinnedSlices = <State extends object>(
+  target: State,
+  source: State,
+  pinned: (keyof State)[],
+): State => {
+  if (pinned.every((key) => target[key] === source[key])) return target;
+
+  return pinned.reduce(
+    (restored, key) => ({ ...restored, [key]: source[key] }),
+    { ...target },
+  );
+};

@@ -1,123 +1,106 @@
-import ChoiceBubble from "../../components_helper/ChoiceBubble";
+import ChoiceBubbles, {
+  type ChoiceBubble,
+} from "../../shared/ui/bubbles/ChoiceBubble";
 import { useAppDispatch, useAppSelector } from "../../app/hooks";
-import {
-  addAlpha,
-  addBeta,
-  addDelta,
-  addGamma,
-  selectCurrentGameFormula,
-  selectGameButtons,
-  selectHistoryData,
-} from "../formulas/formulasSlice";
-import SelectBubble from "../../components_helper/SelectBubble";
-import { selectValuation } from "../variables/variablesSlice";
-import { getDiffAndNew } from "./GameHistory";
+import { addGameChoice, selectGameButtons } from "../formulas/formulasSlice";
+import SelectBubble from "../../shared/ui/bubbles/SelectBubble";
 import { InlineMath } from "react-katex";
-interface Props {
+import { latex } from "../../shared/core/utils";
+
+export interface GameControlsProps {
   id: number;
 }
 
-export default function GameControl({ id }: Props) {
-  const dispatch = useAppDispatch();
-  const current = useAppSelector((state) =>
-    selectCurrentGameFormula(state, id),
+function ControlsWrapper({ children }: { children?: React.ReactNode }) {
+  return (
+    <div className="d-flex justify-content-center mb-3 mt-3">{children}</div>
   );
-  const buttons = useAppSelector((state) => selectGameButtons(state, id));
-  const initialValuation = useAppSelector(selectValuation);
-  const data = useAppSelector((state) => selectHistoryData(state, id));
+}
 
-  const arr = current.formula
-    .getSignedSubFormulas(current.sign)
-    .map(({ sign, formula }) => formula.signedFormulaToString(sign));
+export default function GameControls({ id }: GameControlsProps) {
+  const dispatch = useAppDispatch();
+  const gameButtons = useAppSelector((state) => selectGameButtons(state, id));
 
-  let button = undefined;
-
-  if (buttons === undefined) {
-    return (
-      <>
-        <div className="d-flex justify-content-center mb-3 mt-3">{button}</div>
-      </>
-    );
+  if (!gameButtons) {
+    return <ControlsWrapper />;
   }
 
-  if (buttons.type === "delta") {
-    button = (
-      <SelectBubble
-        id={id}
-        title={
-          <>
-            Select a domain element for{" "}
-            <InlineMath>{buttons.variableName}</InlineMath>
-          </>
-        }
-        choices={buttons.values}
-        type={buttons.type}
-        onclicks={buttons.elements!.map(
-          (element) => () => dispatch(addDelta({ id: id, element: element })),
-        )}
-      />
-    );
-  }
+  const getBubbles = (): ChoiceBubble[] => {
+    switch (gameButtons.type) {
+      case "alpha":
+        return [
+          {
+            value: "Continue",
+            latex: false,
+            onClick: () => dispatch(addGameChoice({ id, type: "alpha" })),
+          },
+        ];
 
-  if (buttons.type === "gamma") {
-    button = (
-      <ChoiceBubble
-        id={id}
-        choices={buttons.values}
-        type={buttons.type}
-        onclicks={buttons.elements!.map(
-          (element) => () => dispatch(addGamma({ id: id, element: element })),
-        )}
-      />
-    );
-  }
+      case "beta": {
+        const { subFormulas, valuationDiff } = gameButtons;
 
-  if (buttons.type === "beta") {
-    const valuationDiff = getDiffAndNew(
-      initialValuation,
-      data.at(-1)?.valuation!,
-    );
+        const valuationText = Array.from(valuationDiff)
+          .map(
+            ([from, to]) =>
+              `(${latex().escape(from).get()} / ${latex().text(to).get()})`,
+          )
+          .join(" ");
 
-    const valuationText = Array.from(valuationDiff)
-      .map(([from, to]) => `(${from} / ${to})`)
-      .join(" ");
+        return subFormulas.map(({ formula, sign }, idx) => ({
+          value: latex()
+            .M()
+            .models(sign)
+            .formula(formula)
+            .valuation(valuationText)
+            .get(),
+          onClick: () =>
+            dispatch(addGameChoice({ id, type: "beta", formula: idx })),
+        }));
+      }
 
-    button = (
-      <ChoiceBubble
-        id={id}
-        choices={buttons.values.map((text) => `${text}[ e${valuationText} ]`)}
-        type={buttons.type}
-        onclicks={buttons.subformulas!.map((_, index) => {
-          if (index === 0 || index === 1) {
-            return () => dispatch(addBeta({ id: id, formula: index }));
-          }
-          return () => {};
-        })}
-      />
-    );
-  }
+      case "gamma": {
+        return [
+          {
+            value: "Continue",
+            latex: false,
+            onClick: () => dispatch(addGameChoice({ id, type: "gamma" })),
+          },
+        ];
+      }
 
-  if (buttons.type === "alpha") {
-    button = (
-      <ChoiceBubble
-        id={id}
-        choices={buttons.values}
-        type={buttons.type}
-        onclicks={buttons.subformulas!.map((sf) => {
-          const index = arr.indexOf(sf.formula.signedFormulaToString(sf.sign));
+      case "delta":
+        return gameButtons.elements.map((element) => ({
+          value: element,
+          onClick: () =>
+            dispatch(addGameChoice({ id, type: "delta", element })),
+        }));
 
-          if (index === 0 || index === 1) {
-            return () => dispatch(addAlpha({ id: id, formula: index }));
-          }
-          return () => {};
-        })}
-      />
-    );
-  }
+      default:
+        return [];
+    }
+  };
+
+  const bubbles = getBubbles();
 
   return (
-    <>
-      <div className="d-flex justify-content-center mb-3 mt-3">{button}</div>
-    </>
+    <ControlsWrapper>
+      {gameButtons.type === "delta" ? (
+        <SelectBubble
+          id={id}
+          title={
+            <>
+              Select a domain element for{" "}
+              <InlineMath>
+                {latex().escape(gameButtons.variableName).get()}
+              </InlineMath>
+            </>
+          }
+          type={gameButtons.type}
+          bubbles={bubbles}
+        />
+      ) : (
+        <ChoiceBubbles id={id} type={gameButtons.type} bubbles={bubbles} />
+      )}
+    </ControlsWrapper>
   );
 }
